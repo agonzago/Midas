@@ -1,3 +1,4 @@
+# coding: utf-8
 #%%
 import pandas as pd
 import numpy as np
@@ -200,55 +201,35 @@ class HaverData:
         return sorted([x for x in self.series_info['scale'].unique().tolist() if pd.notna(x)])
 
     def x13_adjust(self, data, freq='M'):
-        """Perform X-13 seasonal adjustment with robust outlier handling"""
+        """Perform X-13 seasonal adjustment"""
         results = {}
         
         for column in data.columns:
-            if column not in ['date', 'excel_last']:
+            if column not in ['date', 'excel_last']:  # Skip non-data columns
                 series = data[column].dropna()
                 if len(series) > 0:
                     valid_data = data.loc[series.index[0]:series.index[-1], [column]]
                     td_adjusted = self.adjust_trading_days(valid_data, freq)
                     
                     try:
-                        # First attempt with stricter outlier criteria
                         x13_result = x13_arima_analysis(
                             td_adjusted[column].astype(float),
                             freq=freq,
                             trading=True,
-                            #outlier_critical=4.0,  # Stricter outlier detection
-                            #outlier_types=['AO', 'LS'],  # Limit outlier types
                             print_stdout=False
                         )
                         
-                        results[column.split('@')[0]] = pd.Series(
-                            x13_result.seasadj,
-                            index=x13_result.seasadj.index,
-                            dtype=float
-                        )
+                        results[f'{column}_original'] = data[column].astype(float)
+                        results[f'{column}_td_adjusted'] = td_adjusted[column].astype(float)
+                        results[f'{column}_sa'] = pd.Series(x13_result.seasadj, 
+                                                        index=x13_result.seasadj.index,
+                                                        dtype=float)
                         
                     except Exception as e:
-                        try:
-                            # Second attempt with even stricter settings
-                            x13_result = x13_arima_analysis(
-                                td_adjusted[column].astype(float),
-                                freq=freq,
-                                trading=True,
-                                #outlier_critical=5.0,
-                                #outlier_types=['AO'],
-                                print_stdout=False
-                            )
-                            
-                            results[column.split('@')[0]] = pd.Series(
-                                x13_result.seasadj,
-                                index=x13_result.seasadj.index,
-                                dtype=float
-                            )
-                            
-                        except Exception as e2:
-                            print(f"X-13 adjustment failed for {column} with both attempts")
-                            # Keep original series if adjustment fails
-                            results[column.split('@')[0]] = td_adjusted[column].astype(float)
+                        print(f"X-13 adjustment failed for {column}: {str(e)}")
+                        results[f'{column}_original'] = data[column].astype(float)
+                        results[f'{column}_td_adjusted'] = pd.Series(index=data.index, dtype=float)
+                        results[f'{column}_sa'] = pd.Series(index=data.index, dtype=float)
         
         return pd.DataFrame(results)
 
@@ -294,37 +275,31 @@ class HaverData:
 
     def create_sa_database(self):
         """Create database of seasonally adjusted series"""
-        # Get NSA series
         nsa_series = self.series_info[self.series_info['seasonality'] == 'NSA']['series_id'].tolist()
+        if not nsa_series:
+            return pd.DataFrame(), pd.DataFrame()
         
-        # Get existing SA series
-        sa_series = self.series_info[self.series_info['seasonality'] == 'SA']['series_id'].tolist()
-        
+        # Process each NSA series independently
         all_sa_data = []
+        for series_id in nsa_series:
+            series_data = self.data[['date', series_id]].set_index('date')
+            adjusted = self.x13_adjust(series_data)
+            
+            # Extract SA series
+            sa_cols = [col for col in adjusted.columns if col.endswith('_sa')]
+            if sa_cols:
+                sa_series = adjusted[sa_cols]
+                sa_series.columns = [col.replace('_sa', '') for col in sa_cols]
+                all_sa_data.append(sa_series)
         
-        # Process NSA series
-        if nsa_series:
-            for series_id in nsa_series:
-                series_data = self.data[['date', series_id]].set_index('date')
-                adjusted = self.x13_adjust(series_data)
-                
-                # Extract SA series and rename to match original series ID
-                sa_cols = [col for col in adjusted.columns if col.endswith('_sa')]
-                if sa_cols:
-                    sa_series_data = adjusted[sa_cols]
-                    # Remove _sa suffix and database suffix for column name
-                    sa_series_data.columns = [col.replace('_sa', '').split('@')[0] for col in sa_cols]
-                    all_sa_data.append(sa_series_data)
+        # Combine all adjusted series
+        sa_data = pd.concat(all_sa_data, axis=1) if all_sa_data else pd.DataFrame()
         
         # Add existing SA series
+        sa_series = self.series_info[self.series_info['seasonality'] == 'SA']['series_id'].tolist()
         if sa_series:
             existing_sa = self.data[['date'] + sa_series].set_index('date')
-            # Remove database suffix from column names
-            existing_sa.columns = [col.split('@')[0] for col in existing_sa.columns]
-            all_sa_data.append(existing_sa)
-        
-        # Combine all series
-        sa_data = pd.concat(all_sa_data, axis=1)
+            sa_data = pd.concat([sa_data, existing_sa], axis=1)
         
         return sa_data, self.series_info[self.series_info['seasonality'].isin(['SA', 'NSA'])]
     
@@ -352,7 +327,12 @@ sa_data ,sa_metadata = haver.create_sa_database()
 # print("Data Types:", haver.get_unique_data_types())
 # print("Seasonalities:", haver.get_unique_seasonalities())
 # print("Scales:", haver.get_unique_scales())
-# %%
-
- 
-# %%
+data.shape
+data_sa.shape
+data_sa
+sa_data.shape
+sa_data.columns
+dir(sa_data.columns)
+sa_data.columns.unique
+data.columns
+print(data.columns)
