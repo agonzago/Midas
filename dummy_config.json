@@ -1,0 +1,12 @@
+{
+    "variable_info": {
+        "industrial_production": {"seasonal_adjust": false, "growth_rate": true, "transformations": ["level"]},
+        "retail_sales": {"seasonal_adjust": false, "growth_rate": true, "transformations": ["level"]}
+    },
+    "release_calendar": [
+        {"date": "2023-01-15", "variable": "industrial_production", "release_lag_days": 15},
+        {"date": "2023-01-20", "variable": "retail_sales", "release_lag_days": 20}
+    ],
+    "raw_monthly_path": "synthetic_monthly.csv",
+    "raw_gdp_path": "synthetic_gdp.csv"
+}
