@@ -1,0 +1,6 @@
+release_date,series_id,ref_period,source_url,note
+2024-01-15,ipi_mfg,2023-12,https://example.com/ipi,Industrial production monthly release
+2024-01-20,retail_real,2023-12,https://example.com/retail,Retail sales monthly release
+2024-01-25,credit_total,2023-12,https://example.com/credit,Credit data monthly release
+2024-01-30,employment,2023-12,https://example.com/employment,Employment data monthly release
+2024-02-28,gdp_q_qoq_sa,2023Q4,https://example.com/gdp,Quarterly GDP release

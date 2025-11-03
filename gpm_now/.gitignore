@@ -1,0 +1,27 @@
+# Data vintages (can be large)
+data/vintages/*.rds
+
+# Output files
+output/weekly_reports/*.csv
+output/weekly_reports/*.json
+output/logs/*.log
+output/models/*.rds
+
+# R temporary files
+.Rhistory
+.RData
+.Rproj.user
+*.Rproj
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*~
+*.swp
+*.swo
+
+# Cache
+.cache/
+__pycache__/

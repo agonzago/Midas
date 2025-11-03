@@ -1,0 +1,27 @@
+window:
+  type: "rolling"
+  length_quarters: 60
+
+reestimate_on_new_data: true
+
+combination:
+  scheme: "inv_mse_shrink"     # "equal" | "inv_mse_shrink" | "bic_weights"
+  shrinkage_lambda: 0.2
+
+model_selection:
+  primary: "rmse"
+  secondary: "bic"
+
+dfm:
+  package: "dfms"              # or "nowcastDFM"
+  factors_k_candidates: [2, 3, 4]
+  refit_frequency: "monthly"   # or "manual"
+  handle_missing: "EM"         # whichever the package supports
+
+state_space:
+  engine: "KFAS"               # "KFAS" or "MARSS"; optional
+  use_quarterly_state: true    # always keep a quarterly GDP state
+
+report:
+  save_csv: true
+  save_json: true
