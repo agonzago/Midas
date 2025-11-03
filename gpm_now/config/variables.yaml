@@ -1,0 +1,41 @@
+# Target block: allow both monthly and quarterly targets
+target:
+  id_q: "gdp_q_qoq_sa"         # quarterly GDP growth (primary evaluation target)
+  id_m_proxy: "ibc_br_m"       # optional monthly GDP proxy (e.g., IBC-Br); null if none
+  target_scale_q: "qoq"        # "qoq" or "yoy" for quarterly evaluation/estimation
+  transform_q: "pct_qoq"
+  transform_m: "pct_mom_sa"    # for monthly proxy if present
+  seasonally_adjusted: true
+
+indicators:
+  - id: "ipi_mfg"
+    freq: "monthly"
+    transform: "pct_mom_sa"
+    lag_max_months: 12
+    midas: "unrestricted"
+    in_tprf: true
+    in_dfm: true
+
+  - id: "retail_real"
+    freq: "monthly"
+    transform: "pct_mom_sa"
+    lag_max_months: 12
+    midas: "unrestricted"
+    in_tprf: true
+    in_dfm: true
+
+  - id: "credit_total"
+    freq: "monthly"
+    transform: "pct_mom_sa"
+    lag_max_months: 12
+    midas: "unrestricted"
+    in_tprf: true
+    in_dfm: true
+
+  - id: "employment"
+    freq: "monthly"
+    transform: "pct_mom_sa"
+    lag_max_months: 12
+    midas: "unrestricted"
+    in_tprf: true
+    in_dfm: true
