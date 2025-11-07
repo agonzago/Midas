@@ -1,0 +1,571 @@
+# 1. Produce forecast for inflation rates
+# 2. Summarized the latest data trends
+# Go to line 561 to run the code 
+rm(list = ls())
+
+# Packages for data retrive
+library("readxl")
+library("lubridate")
+library("dplyr")
+library("tidyverse")
+library("reticulate")
+library("zoo")
+library("lubridate")
+library("forecast")
+library("BVAR")
+library(BMR)
+library(tseries)
+library(xtable)
+library(ggplot2)
+library(rstudioapi)
+library(knitr)
+
+library(reticulate)
+reticulate::use_python("//ecnswn06p/apps/python/python312", required=TRUE)
+imf_datatools <- reticulate::import("imf_datatools")
+# set the working directory 
+#setwd(dirname(getActiveDocumentContext()$path))
+setwd("E:/data/gpm/SANDBOXES/andres/Mexico/ShortTermInflationForecast/")
+
+
+
+Transformations_ind <- function(price) {
+  # Create some transformations for montly data and inflation rates
+  price <- price %>%
+    mutate(across(where(is.numeric),
+                  list(
+                    L = ~ log(.), # LOG
+                    DL = ~ c(NA, 1200 * diff(log(.))), # QoQ log growth
+                    DA = ~ 1200 * ((.) / lag(.) - 1), # QoQ Growth rate annualized
+                    D = ~ 100 * ((.) / lag(.) - 1), # QoQ Growth rate
+                    D4 = ~ 100 * ((.) / lag(., 12) - 1) ## YOY
+                  ),
+                  .names = "{.fn}_{.col}"
+    ))
+  return(price)
+}
+
+Transformations_ind_Q <- function(price) {
+  price <- price %>%
+    mutate(across(where(is.numeric),
+                  list(
+                    L = ~ ifelse(is.na(.), NA, log(.)),
+                    DL = ~ c(NA, 400 * diff(log(.), na.pad = TRUE)),
+                    DA = ~ ifelse(is.na(.) | is.na(lag(.)), NA, 400 * ((.) / lag(.) - 1)),
+                    D = ~ ifelse(is.na(.) | is.na(lag(.)), NA, 100 * ((.) / lag(.) - 1)),
+                    D4 = ~ ifelse(is.na(.) | is.na(lag(., 4)), NA, 100 * ((.) / lag(., 4) - 1))
+                  ),
+                  .names = "{.fn}_{.col}"
+    )
+    )
+  return(price)
+}
+
+ReadData <- function()
+{
+  havercodes_index <- c(
+    "H273PJ@EMERGELA", #  CPI
+    "H273PJXQ@EMERGELA", #  Core CPI
+    "H273PJXU@EMERGELA", #  Core Merch
+    "H273PJZX@EMERGELA", #  Core Proc Food
+    "H273PJNO@EMERGELA", #  Core Other
+    "H273PJXW@EMERGELA", #  Services
+    "H273PJ2E@EMERGELA", #  Education
+    "H273PJ2H@EMERGELA", #  Housing
+    "H273PJ2O@EMERGELA", #  Other
+    "H273PJ3@EMERGELA", #  Non Core
+    "H273PJ3A@EMERGELA", #  Agricultural
+    "H273PJ3F@EMERGELA", #  Fruits & Vegies
+    "H273PJ3M@EMERGELA", #  Meat & Eggs
+    "H273PJJ1@EMERGELA", #  Energy and regulated prices
+    "H273PJJ0@EMERGELA", #  Energy
+    "H273PJJR@EMERGELA" #  Regulated prices
+  )
+  havercodes_weigh <- c(
+    "N273JW@EMERGELA", #  CPI
+    "N273JWXQ@EMERGELA", #  Core CPI
+    "N273JWXU@EMERGELA", #  Core Merch
+    "N273JWZX@EMERGELA", #  Core Proc Food
+    "N273JWNO@EMERGELA", #  Core Other
+    "N273JWXW@EMERGELA", #  Services
+    "N273JW2E@EMERGELA", #  Education
+    "N273JW2H@EMERGELA", #  Housing
+    "N273JW2O@EMERGELA", #  Other
+    "N273JW3@EMERGELA", #  Non Core
+    "N273JW3A@EMERGELA", #  Agricultural
+    "N273JW3F@EMERGELA", #  Fruits & Vegies
+    "N273JW3M@EMERGELA", #  Meat & Eggs
+    "N273JWJ1@EMERGELA", #  Energy and regulated prices
+    "N273JWJ0@EMERGELA", #  Energy
+    "N273JWJR@EMERGELA" #  Regulated prices
+  )
+  price_index <- imf_datatools$get_haver_data(havercodes_index, eop=TRUE)
+  colnames(price_index) <- c(
+    "CPI", "CPI_CORE", "CPI_CORE_M", "CPI_CORE_PF", "CPI_CORE_OM", "CPI_CORE_S",
+    "CPI_CORE_SE", "CPI_CORE_SH", "CPI_CORE_SO", "CPI_NCORE", "CPI_NCORE_AG", "CPI_NCORE_FV",
+    "CPI_NCORE_ME", "CPI_NCORE_ER", "CPI_NCORE_E", "CPI_NCORE_R"
+  )
+  weights <- imf_datatools$get_haver_data(havercodes_weigh, eop=TRUE)
+  colnames(weights) <- c(
+    "CPI", "CPI_CORE", "CPI_CORE_M", "CPI_CORE_PF", "CPI_CORE_OM", "CPI_CORE_S",
+    "CPI_CORE_SE", "CPI_CORE_SH", "CPI_CORE_SO", "CPI_NCORE", "CPI_NCORE_AG", "CPI_NCORE_FV",
+    "CPI_NCORE_ME", "CPI_NCORE_ER", "CPI_NCORE_E", "CPI_NCORE_R"
+  )
+  
+  price_index$Date <- format(as.Date(as.yearmon(rownames(price_index))), "%Y-%m-%d")
+  weights$Date <- format(as.Date(as.yearmon(rownames(weights))), "%Y-%m-%d")
+  dfl_core_noncore <- list( p = price_index, w = weights)
+  
+  
+  #Read by componets 
+  havercodes_index <- c(
+    "H273PJF@EMERGELA", # Food, beverages and tobacco
+    "H273PJA@EMERGELA", # Clothes, shoes and accessories
+    "H273PJH@EMERGELA", # Housing
+    "H273PJG@EMERGELA", # Furniture, appliances and home furnishing
+    "H273PJMT@EMERGELA", # Medical care
+    "H273PJT@EMERGELA", # Transportation
+    "H273PJER@EMERGELA", # Personal & educational expenses
+    "H273PJO@EMERGELA" # Other goods and services
+  )
+  
+  havercodes_weights <- c(
+    "N273JWF@EMERGELA", # Food, beverages and tobacco
+    "N273JWA@EMERGELA", # Clothes, shoes and accessories
+    "N273JWH@EMERGELA", # Housing
+    "N273JWG@EMERGELA", # Furniture, appliances and home furnishing
+    "N273JWMT@EMERGELA", # Medical care
+    "N273JWT@EMERGELA", # Transportation
+    "N273JWER@EMERGELA", # Personal & educational expenses
+    "N273JWO@EMERGELA" # Other goods and services
+  )
+  
+  price_index <- imf_datatools$get_haver_data(havercodes_index)
+  colnames(price_index) <- c(
+    "FOOD", "CLOTH", "HOUSING", "FURNITURE", "MEDICAL", "TRANSP",
+    "EDUCATION", "OTHER"
+  )
+  weights <- imf_datatools$get_haver_data(havercodes_weights)
+  colnames(weights) <- c(
+    "FOOD", "CLOTH", "HOUSING", "FURNITURE", "MEDICAL", "TRANSP",
+    "EDUCATION", "OTHER"
+  )
+  
+  price_index$Date <- format(as.Date(as.yearmon(rownames(price_index))), "%Y-%m-%d")
+  weights$Date <- format(as.Date(as.yearmon(rownames(weights))), "%Y-%m-%d")
+  price_index$Date <- as.Date(price_index$Date)
+  
+  dfl_componets <- list( p = price_index, w =weights)
+  
+  return(list(dfl_core_non_core = dfl_core_noncore, dfl_comp = dfl_componets))
+}
+
+Forecats_Core_nonCore <- function(data, startEst = "2001-01-01", endEst= "2024-07-01" , horizon=12) {
+  
+  # startEst = "2001-01-01"
+  # endEst= "2024-07-01" 
+  # horizon=12
+  # data = df
+  price<- data$dfl_core_non_core$p
+  weights<-data$dfl_core_non_core$w
+  h<- horizon
+  
+  #Transform data using all available data
+  price <- Transformations_ind(price)
+  
+  price <- subset(price, subset = c((Date >= startEst)  & (Date <= endEst) ))
+  weights <- subset(weights, subset = c((Date >= startEst)  & (Date <= endEst) ))
+  
+  
+  # Tables
+  start_year <- year(min(price$Date))
+  start_month <- month(min(price$Date))
+  
+  # Forecast by components 
+  Autoarima_componets <- function(){
+    
+    for_vars <- grep("^DL_", names(price), value = TRUE)
+    
+    # Autoarimas
+    forecasts <- list()
+    for (i in c(1:length(for_vars))) {
+      tmp <- ts(price[for_vars[i]], start = c(start_year, start_month), freq = 12)
+      model <- auto.arima(tmp, stepwise = FALSE, D = 0, approximation = FALSE,d=0, max.P=0,max.Q=0, max.p=12, max.q=12)
+      forecast <- forecast::forecast(model, h = h)
+      forecasts[[for_vars[i]]] <- forecast$mean
+    }
+    
+    # Generate Aggregates
+    # CPI
+    w1 <- weights$CPI_CORE[length(weights$CPI_CORE)] / 100
+    w2 <- weights$CPI_NCORE[length(weights$CPI_NCORE)] / 100
+    
+    CPI_F <- w1 * forecasts$DL_CPI_CORE + w2 * forecasts$DL_CPI_NCORE
+    CPI_F1 <- forecasts$DL_CPI
+    # Food
+    CPI_FOOD_1 <- forecasts$DL_CPI_NCORE_AG
+    w1 <- weights$CPI_NCORE_FV[length(weights$CPI_NCORE_FV)] / 100
+    w2 <- weights$CPI_NCORE_ME[length(weights$CPI_NCORE_ME)] / 100
+    sw <- (w1 + w2)
+    w1 <- w1 / sw
+    w2 <- w2 / sw
+    CPI_FOOD_2 <- w1 * forecasts$DL_CPI_NCORE_FV + w2 * forecasts$DL_CPI_NCORE_ME
+    CPI_FOOD_AVE <- (CPI_FOOD_1 + CPI_FOOD_2) / 2
+    
+    # Energy
+    CPI_ENERGY_1 <- forecasts$DL_CPI_NCORE_ER
+    w1 <- weights$CPI_NCORE_E[length(weights$CPI_NCORE_E)] / 100
+    w2 <- weights$CPI_NCORE_R[length(weights$CPI_NCORE_R)] / 100
+    sw <- (w1 + w2)
+    w1 <- w1 / sw
+    w2 <- w2 / sw
+    CPI_ENERGY_2 <- w1 * forecasts$DL_CPI_NCORE_E + w2 * forecasts$DL_CPI_NCORE_R
+    # CPI_CORE
+    w1 <- weights$CPI_CORE_PF[length(weights$CPI_CORE_PF)] / 100
+    w2 <- weights$CPI_CORE_OM[length(weights$CPI_CORE_OM)] / 100
+    w3 <- weights$CPI_CORE_SE[length(weights$CPI_CORE_SE)] / 100
+    w4 <- weights$CPI_CORE_SH[length(weights$CPI_CORE_SH)] / 100
+    w5 <- weights$CPI_CORE_SO[length(weights$CPI_CORE_SO)] / 100
+    
+    sw <- (w1 + w2 + w3 + w4 + w5)
+    
+    CPI_CORE_2 <- (w1 * forecasts$DL_CPI_CORE_PF +
+                     w2 * forecasts$DL_CPI_CORE_OM +
+                     w3 * forecasts$DL_CPI_CORE_SE +
+                     w4 * forecasts$DL_CPI_CORE_SH +
+                     w5 * forecasts$DL_CPI_CORE_SO) / sw
+    
+    CPI_CORE_1 <- forecasts$DL_CPI_CORE
+    
+    #Monthly m/m anualized forecast
+    # Monthly Price Index    
+    last_price <- subset(price, subset = c(Date == endEst))  
+    d1 <- as.Date(endEst) %m+% months(1)
+    out_DL_fore <- data.frame(
+      Date = as.Date(seq(d1, length.out = horizon, by = "month")),
+      DL_CPI_1 = CPI_F, 
+      DL_CPI_2 = CPI_F1,
+      DL_CPI_FOOD_1 = CPI_FOOD_1, 
+      DL_CPI_FOOD_2 = CPI_FOOD_2,
+      DL_CPI_ENERGY_1=CPI_ENERGY_1, 
+      DL_CPI_ENERGY_2=CPI_ENERGY_2,     
+      DL_CPI_CORE_1 =  CPI_CORE_1,
+      DL_CPI_CORE_2 =  CPI_CORE_2            
+    )
+    
+    out_Index <- data.frame(
+      Date = as.Date(seq(d1, length.out = horizon, by = "month")),
+      CPI_1 = exp(last_price$L_CPI +cumsum( out_DL_fore$DL_CPI_1/1200)),
+      CPI_2 = exp(last_price$L_CPI +cumsum( out_DL_fore$DL_CPI_2/1200)),
+      CPI_FOOD_1 = exp(last_price$L_CPI_NCORE_AG +cumsum( out_DL_fore$DL_CPI_FOOD_1/1200 )),
+      CPI_FOOD_2 = exp(last_price$L_CPI_NCORE_AG +cumsum( out_DL_fore$DL_CPI_FOOD_2/1200 )),
+      CPI_ENERGY_1 = exp(last_price$L_CPI_NCORE_ER +cumsum( out_DL_fore$DL_CPI_ENERGY_1/1200 )),
+      CPI_ENERGY_2 = exp(last_price$L_CPI_NCORE_ER +cumsum( out_DL_fore$DL_CPI_ENERGY_2/1200 )),
+      CPI_CORE_1 = exp(last_price$L_CPI_CORE +cumsum( out_DL_fore$DL_CPI_CORE_1/1200 )),
+      CPI_CORE_2 = exp(last_price$L_CPI_CORE +cumsum( out_DL_fore$DL_CPI_CORE_2/1200 ))             
+    )   
+    
+    return(merge(out_DL_fore, out_Index, by="Date"))
+  }
+  
+  BVAR_core <- function(){
+    # Estimating a BVAR with prior means
+    data_core <- data.frame(
+      DL_CPI_CORE_PF = price$DL_CPI_CORE_PF,
+      DL_CPI_CORE_OM = price$DL_CPI_CORE_OM,
+      DL_CPI_CORE_SE = price$DL_CPI_CORE_SE,
+      DL_CPI_CORE_SH = price$DL_CPI_CORE_SH,
+      DL_CPI_CORE_SO = price$DL_CPI_CORE_SO
+    )
+    
+    # CPI_CORE
+    w1 <- weights$CPI_CORE_PF[length(weights$CPI_CORE_PF)] / 100
+    w2 <- weights$CPI_CORE_OM[length(weights$CPI_CORE_OM)] / 100
+    w3 <- weights$CPI_CORE_SE[length(weights$CPI_CORE_SE)] / 100
+    w4 <- weights$CPI_CORE_SH[length(weights$CPI_CORE_SH)] / 100
+    w5 <- weights$CPI_CORE_SO[length(weights$CPI_CORE_SO)] / 100
+    
+    sw <- (w1 + w2 + w3 + w4 + w5)
+    
+    #Number of lags in the BVAR
+    plag <- 4
+    #Data 
+    bvar_data <- data.matrix(data_core) 
+    bvar_obj <- new(bvars)
+    #True stands for include intercept,  Exgogenos variables can be added to the data matrix and as option here
+    bvar_obj$build(bvar_data, TRUE, plag)
+    
+    coef_prior <- rep(0.9, 5)
+    # Unconditional mean prior (Mattias )
+    psi_prior <- matrix(c(5.713522, 3.196637, 5.406816, 3.020856, 3.848438), nrow = 1)
+    # Minnesota type hyperparameters: priors for  own lags and cross-variable lags
+    HP1 <- 0.5
+    HP2 <- 0.5
+    #Prior varianza on psi_prior (smaller more prior info)
+    XiPsi <- 0.8
+    #prior degrees of freedom for Sigma (Larger gamma implies a more informative prior )
+    gamma <- 4
+    # FALSE  stands for Classical Minesota covariance prior nor full estimation 
+    bvar_obj$prior(coef_prior, HP1, HP2, psi_prior, XiPsi, gamma, FALSE)
+    bvar_obj$gibbs(1000, 200)  #Number of psoterior draws, number of burnin draw
+    aa <- BMR::forecast(bvar_obj, shocks = FALSE, periods=h, var_names = names(data_core), back_data = 0, save = FALSE, plot=FALSE)
+    
+    w <- matrix(c(w1, w2, w3, w4, w5)/sw, 5, 1)
+    
+    DL_CORE_F3 <- aa$forecast_mean %*% w
+    
+    last_price <- subset(price, subset = c(Date == endEst)) 
+    d1 <- as.Date(endEst) %m+% months(1) 
+    
+    outF <- data.frame(
+      Date = as.Date(seq(d1, length.out = horizon, by = "month")),
+      DL_CORE_F3 = DL_CORE_F3,
+      CPI_CORE_3 = exp(last_price$L_CPI_CORE +cumsum( DL_CORE_F3/1200))
+    )
+    
+    return(outF)
+  }
+  
+  BVAR_food <-function(){
+    # Data Food
+    data_food <- data.frame(
+      DL_CPI_CORE_PF = price$DL_CPI_NCORE_FV,
+      DL_CPI_CORE_OM = price$DL_CPI_NCORE_ME,
+      DL_CPI_CORE = price$DL_CPI_CORE
+    )
+    
+    w1 <- weights$CPI_NCORE_FV[length(weights$CPI_NCORE_FV)] / 100
+    w2 <- weights$CPI_NCORE_ME[length(weights$CPI_NCORE_ME)] / 100
+    w <- matrix(c(w1, w2, 0) / (w1 + w2), 3)
+    
+    plag <- 4
+    bvar_data <- data.matrix(data_food)
+    bvar_obj <- new(bvars)
+    bvar_obj$build(bvar_data, TRUE, plag)
+    
+    coef_prior <- rep(0.9, 3)
+    psi_prior <- matrix(c(4.5, 3, 3), nrow = 1)
+    
+    HP1 <- 0.5
+    HP2 <- 0.5
+    XiPsi <- 0.8
+    gamma <- 4
+    
+    bvar_obj$prior(coef_prior, HP1, HP2, psi_prior, XiPsi, gamma, FALSE)
+    bvar_obj$gibbs(1000, 200)
+    #aa <- BMR::forecast(bvar_obj, shocks = TRUE, periods=15, var_names = names(data_food), back_data = 10, save = FALSE)
+    aa <- BMR::forecast(bvar_obj, shocks = FALSE, periods=h, var_names = names(data_food), back_data = 0, save = FALSE, plot=FALSE)
+    
+    DL_FOOD_F3 <- aa$forecast_mean %*% w
+    
+    last_price <- subset(price, subset = c(Date == endEst))  
+    d1 <- as.Date(endEst) %m+% months(1)
+    outF <- data.frame(
+      Date = as.Date(seq(d1, length.out = horizon, by = "month")),
+      DL_FOOD_3 = DL_FOOD_F3,
+      CPI_FOOD_3 = exp(last_price$L_CPI_NCORE_AG +cumsum( DL_FOOD_F3/1200))        
+    )
+    
+    return(outF)
+  }
+  
+  BVAR_energy<-function()
+  {
+    # Data Energy 
+    data_energy <- data.frame(
+      DL_CPI_CORE_PF = price$DL_CPI_NCORE_E,
+      DL_CPI_CORE_OM = price$DL_CPI_NCORE_R,
+      DL_CPI_CORE = price$DL_CPI_CORE
+    )
+    
+    w1 <- weights$CPI_NCORE_E[length(weights$CPI_NCORE_E)] / 100
+    w2 <- weights$CPI_NCORE_R[length(weights$CPI_NCORE_R)] / 100
+    w <- matrix(c(w1, w2, 0) / (w1 + w2), 3)
+    
+    plag <- 4
+    bvar_data <- data.matrix(data_energy)
+    bvar_obj <- new(bvars)
+    bvar_obj$build(bvar_data, TRUE, plag)
+    
+    coef_prior <- rep(0.9, 3)
+    psi_prior <- matrix(c(4, 0, 3), nrow = 1)
+    
+    HP1 <- 0.5
+    HP2 <- 0.5
+    XiPsi <- 0.8
+    gamma <- 4
+    
+    bvar_obj$prior(coef_prior, HP1, HP2, psi_prior, XiPsi, gamma, FALSE)
+    bvar_obj$gibbs(1000, 200)
+    
+    aa <- BMR::forecast(bvar_obj, shocks = FALSE, periods=h, var_names = names(data_energy), back_data = 0, save = FALSE, plot=FALSE)
+    DL_ENERGY_F3 <- aa$forecast_mean %*% w
+    
+    last_price <- subset(price, subset = c(Date == endEst)) 
+    d1 <- as.Date(endEst) %m+% months(1) 
+    outF <- data.frame(
+      Date = as.Date(seq(d1, length.out = horizon, by = "month")),
+      DL_ENERGY_F3 = DL_ENERGY_F3,
+      CPI_ENERGY_3 = exp(last_price$L_CPI_NCORE_ER +cumsum( DL_ENERGY_F3/1200))        
+    )   
+    
+    return(outF)    
+  }
+  
+  M1 <- Autoarima_componets()  #M1 contains the forecast by components 
+  M2 <- BVAR_energy()
+  M1 <- merge(M1, M2, by="Date")
+  M3 <- BVAR_food()
+  M1 <- merge(M1, M3, by="Date")
+  M4 <- BVAR_core()
+  M1 <- merge(M1, M4, by="Date")
+  
+  return(M1)
+}
+
+Forecats_Report <- function(data, Fore, startEst = "2001-01-01", endEst= "2024-07-01" , startPlot = "2022-07-01", horizon=12)
+ {
+# startPlot = "2022-01-01"
+# endEst = "2024-07-01"
+# startEst = "2001-01-01"
+
+# horizon<-12
+# data <- df
+price<- data$dfl_core_non_core$p
+weights<-data$dfl_core_non_core$w
+h<- horizon
+
+#Transform data using all available data
+price <- Transformations_ind(price)
+
+#price <- subset(price, subset = c((Date >= startPlot)  & (Date <= endEst) ))
+price$Date <- as.Date(price$Date)
+#weights <- subset(weights, subset = c((Dates >= startEst)  & (Dates <= endEst) ))
+
+#$rbind(price, DL_FORE, by = "Date")
+aa=full_join(price, DL_FORE, by = "Date")
+
+atmp <- aa
+    sb_atmp = subset(atmp, subset = c((Date >= startEst)  & (Date <= endEst) ))
+    #CPI
+    tmp <- sb_atmp$CPI
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),c("CPI_1") ] <- tmp
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_2"] <- tmp
+
+    #CORE
+    tmp <- sb_atmp$CPI_CORE
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_CORE_1" ] <- tmp
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_CORE_2"] <- tmp
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_CORE_3"] <- tmp
+
+    # ENERGY
+    tmp <- sb_atmp$CPI_NCORE_ER
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_ENERGY_1" ] <- tmp
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_ENERGY_2"] <- tmp
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_ENERGY_3"] <- tmp
+
+    # FOOD
+    tmp <- sb_atmp$CPI_NCORE_AG
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_FOOD_1" ] <- tmp
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_FOOD_2"] <- tmp
+    atmp[((atmp$Date >= startEst)  & (atmp$Date <= endEst)),"CPI_FOOD_3"] <- tmp
+
+    atmp <- subset(atmp, subset = c((Date >= startEst)))
+
+# ggplot()+
+#   geom_line(
+#     data = atmp , 
+#     aes(
+#       x = Date, 
+#       y = Value, 
+#       colour = Simulation))+
+#   theme(
+#     legend.position="none",
+#     plot.title = element_text(size=20)
+#   )   +
+#   labs(title = "MoM CPI ", x = "Quarters", y = "MoM CPI")+
+#   theme_classic()
+
+#Monthly Forecast Indeces 
+  monthly_cpi_fcs_index <- atmp[, c("Date", "CPI_1", "CPI_2", 
+             "CPI_CORE_1", "CPI_CORE_2", "CPI_CORE_3",
+             "CPI_ENERGY_1", "CPI_ENERGY_2", "CPI_ENERGY_3",
+             "CPI_FOOD_1", "CPI_FOOD_2", "CPI_FOOD_3"
+             )]
+  monthly_infl_fcs <- Transformations_ind(monthly_cpi_fcs_index)
+  monthly_infl_fcs$Date<- as.Date(atmp$Date)
+  to_table<-tail(monthly_infl_fcs, 15)
+  row.names(to_table) <- format(as.yearmon(to_table$Date), format="%y-%m")
+    
+  for_vars <- grep("^D_", names(monthly_infl_fcs), value = TRUE)
+  kable(to_table[,for_vars ], 
+      caption = "Inflation Forecast MoM", 
+      digits= 3,
+      row.names=TRUE)%>%print()
+
+  for_vars <- grep("^D4", names(monthly_infl_fcs), value = TRUE)
+  kable(to_table[,for_vars ], 
+      caption = "Inflation Forecast YoY", 
+      digits= 3)%>%print()
+
+  ## Create Quarterly Forecast
+  #Create a list of the years in the data
+  years <- unique(year(atmp$Date))
+
+  # Create a sequence of dates from start to end with monthly intervals
+  dates_seq <- seq(as.Date(paste0(min(years), "-01-01")), 
+                 as.Date(paste0(max(years), "-12-01")), 
+                 by = "month")
+
+# Create the quarters in the appropriate format for the years in the database
+quarters <- data.frame(year_quarter =  paste0(year(dates_seq),"Q", quarter(dates_seq)), 
+                       Date = dates_seq
+)
+
+# Create year_quarter column and merge the quarters om tje 
+data <- atmp %>%
+  mutate(year_quarter = paste(year(Date), quarter(Date), sep = "Q")) %>%
+  merge(quarters, all = T)
+
+# Aggregate data by year_quarter
+quarterly_data <- data %>%
+  pivot_longer(cols = -c(Date, year_quarter)) %>%
+  group_by(year_quarter, name) %>%
+  summarize(value = mean(value)) %>%
+  pivot_wider(names_from = name, values_from = value)
+quarterly_data$year_quarter <- as.Date(as.yearqtr(quarterly_data$year_quarter, format = "%YQ%q"))
+
+# Implict Quaterly Forecast 
+  quarterly_fore <- Transformations_ind_Q(
+        quarterly_data[,c("CPI_1", "CPI_2", 
+                      "CPI_CORE_1", "CPI_CORE_2", "CPI_CORE_3",
+                          "CPI_ENERGY_1", "CPI_ENERGY_2", "CPI_ENERGY_3",
+                      "CPI_FOOD_1", "CPI_FOOD_2", "CPI_FOOD_3"
+              )]) 
+
+quarterly_fore$Date <- as.Date(quarterly_data$year_quarter, format="%YQ%q")
+to_table <-  to_table<-tail(quarterly_fore, 10)
+
+  for_vars <- c("Date", grep("^D_", names(quarterly_fore), value = TRUE))
+  kable(to_table[,for_vars ], 
+      caption = "Inflation Forecast QoQ", 
+      digits= 3,
+      row.names=TRUE)%>% print()
+
+  for_vars <- c("Date",grep("^D4", names(quarterly_fore), value = TRUE))
+  kable(to_table[,for_vars ], 
+      caption = "Inflation Forecast YoY", 
+      digits= 3)%>% print()
+
+}
+
+## To do: Check CPI aggregators in forecast funtion 
+## Add graphs to the report 
+## Make the Rmarkdown report
+df <- ReadData()
+DL_FORE <- Forecats_Core_nonCore(df, startEst = "2001-01-01", endEst = "2024-10-01", horizon=12)
+Forecats_Report(df, DL_FORE, startEst = "2001-01-01", endEst= "2024-10-01" , startPlot = "2022-07-01", horizon=12)
+
+
+
+

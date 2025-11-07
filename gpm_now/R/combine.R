@@ -3,7 +3,7 @@
 
 #' Combine forecasts from multiple models
 #' @param indiv_list List of individual forecast objects
-#' @param scheme Combination scheme ("equal", "inv_mse_shrink", "bic_weights")
+#' @param scheme Combination scheme ("equal", "inv_mse_shrink", "bic_weights", "inv_bic")
 #' @param history Historical forecast performance (for weighting)
 #' @return List with combined point, intervals, and weights
 combine_forecasts <- function(indiv_list, scheme = "equal", history = NULL) {
@@ -14,6 +14,11 @@ combine_forecasts <- function(indiv_list, scheme = "equal", history = NULL) {
   
   ses <- sapply(indiv_list, function(x) {
     if (!is.null(x$se)) x$se else NA
+  })
+  
+  # Extract BIC values if available
+  bics <- sapply(indiv_list, function(x) {
+    if (!is.null(x$bic)) x$bic else NA
   })
   
   # Remove NA forecasts
@@ -31,10 +36,11 @@ combine_forecasts <- function(indiv_list, scheme = "equal", history = NULL) {
   
   points <- points[valid_idx]
   ses <- ses[valid_idx]
+  bics <- bics[valid_idx]
   model_names <- names(indiv_list)[valid_idx]
   
   # Calculate weights based on scheme
-  weights <- calculate_weights(scheme, points, ses, model_names, history)
+  weights <- calculate_weights(scheme, points, ses, bics, model_names, history)
   
   # Combined point forecast
   combined_point <- sum(weights * points)
@@ -66,10 +72,11 @@ combine_forecasts <- function(indiv_list, scheme = "equal", history = NULL) {
 #' @param scheme Weighting scheme
 #' @param points Vector of point forecasts
 #' @param ses Vector of standard errors
+#' @param bics Vector of BIC values
 #' @param model_names Vector of model names
 #' @param history Historical performance data
 #' @return Vector of weights
-calculate_weights <- function(scheme, points, ses, model_names, history) {
+calculate_weights <- function(scheme, points, ses, bics, model_names, history) {
   n_models <- length(points)
   
   if (scheme == "equal") {
@@ -107,10 +114,43 @@ calculate_weights <- function(scheme, points, ses, model_names, history) {
     lambda <- 0.2
     weights <- (1 - lambda) * weights_inv + lambda * weights_eq
     
-  } else if (scheme == "bic_weights") {
-    # BIC-based weights
+  } else if (scheme == "inv_bic") {
+    # Simple inverse BIC weights (lower BIC = better model = higher weight)
+    # This is the approach from the old Mexico MIDAS code
     
-    if (!is.null(history) && "bic" %in% names(history)) {
+    if (!all(is.na(bics))) {
+      # Use BIC values directly from models
+      bic_vals <- bics
+    } else if (!is.null(history) && "bic" %in% names(history)) {
+      # Use historical BIC
+      bic_vals <- sapply(model_names, function(name) {
+        if (name %in% names(history$bic)) {
+          history$bic[[name]]
+        } else {
+          mean(history$bic, na.rm = TRUE)
+        }
+      })
+    } else {
+      # Fall back to equal weights
+      warning("No BIC values available for inv_bic scheme. Using equal weights.")
+      weights <- rep(1 / n_models, n_models)
+      return(weights / sum(weights))
+    }
+    
+    # Avoid division by zero
+    bic_vals[bic_vals < 1e-10] <- 1e-10
+    
+    # Inverse BIC weights (lower BIC gets higher weight)
+    weights <- 1 / bic_vals
+    weights <- weights / sum(weights)
+    
+  } else if (scheme == "bic_weights") {
+    # BIC-based weights using delta-BIC approach (more sophisticated)
+    # This accounts for the relative likelihood of models
+    
+    if (!all(is.na(bics))) {
+      bic_vals <- bics
+    } else if (!is.null(history) && "bic" %in% names(history)) {
       bic_vals <- sapply(model_names, function(name) {
         if (name %in% names(history$bic)) {
           history$bic[[name]]
@@ -118,18 +158,18 @@ calculate_weights <- function(scheme, points, ses, model_names, history) {
           0  # Neutral if not found
         }
       })
-      
-      # Convert BIC to weights (lower BIC is better)
-      # Use exp(-0.5 * delta_BIC)
-      min_bic <- min(bic_vals)
-      delta_bic <- bic_vals - min_bic
-      weights <- exp(-0.5 * delta_bic)
-      weights <- weights / sum(weights)
-      
     } else {
       # Fall back to equal weights
       weights <- rep(1 / n_models, n_models)
+      return(weights / sum(weights))
     }
+    
+    # Convert BIC to weights (lower BIC is better)
+    # Use exp(-0.5 * delta_BIC) based on information theory
+    min_bic <- min(bic_vals, na.rm = TRUE)
+    delta_bic <- bic_vals - min_bic
+    weights <- exp(-0.5 * delta_bic)
+    weights <- weights / sum(weights)
     
   } else {
     # Unknown scheme, use equal weights
