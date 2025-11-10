@@ -1,0 +1,34 @@
+================================================================================ 
+MIDAS NOWCASTING EVALUATION REPORT
+Generated: 2025-11-09 22:33:35 
+================================================================================ 
+
+1. EXECUTIVE SUMMARY
+-------------------------------------------------------------------------------- 
+
+Models Evaluated:
+  - MIDAS (single indicator): 3 specifications
+  - TPRF-MIDAS (factor-based): 2 specifications
+
+Best Overall Model:
+  Specification: MIDAS_AR1_lag3_m2 
+  RMSE: 13.4923 
+  MAE: 5.4904 
+
+2. FULL RESULTS
+-------------------------------------------------------------------------------- 
+
+                      spec n_forecasts     rmse       mae         me
+1        MIDAS_AR1_lag3_m2          63 13.49226  5.490354 -0.5736561
+2        MIDAS_AR2_lag4_m2          63 13.61532  5.725386 -0.8883541
+3         TPRF_AR2_lag4_m2          63 21.71644  8.535059  2.4497938
+4 MIDAS_AR2_lag4_m2_roll40          63 22.60871  9.899750 -1.1235386
+5  TPRF_AR2_lag4_m2_roll40          63 50.09442 15.049264  8.3053823
+
+
+3. COMPARISON
+-------------------------------------------------------------------------------- 
+
+Best MIDAS:  RMSE = 13.4923 , MAE = 5.4904 
+Best TPRF:   RMSE = 21.7164 , MAE = 8.5351 
+Improvement: -60.95 %

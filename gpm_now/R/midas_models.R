@@ -177,23 +177,49 @@ fit_midas_unrestricted <- function(y_q, x_m, y_lag, x_lag, month_of_quarter = NU
   tryCatch({
     if (is.null(month_of_quarter)) {
       # Lagged indicator (published with delay)
+      # Use lag() to shift the entire series by 1 quarter (3 months)
+      # This means we use data from t-3, t-4, ..., t-3-x_lag months back
       if (y_lag == 0) {
-        fit <- midasr::midas_u(y_q ~ lag(midasr::mls(x_m, 0:x_lag, 3), 1))
+        # Create formula with actual values, not variables
+        # NOTE: Don't use midasr:: prefix in formula - it causes forecast() to fail
+        fml <- as.formula(sprintf("y_q ~ lag(mls(x_m, 0:%d, 3), 1)", x_lag))
+        fit <- midasr::midas_u(fml)
       } else {
-        fit <- midasr::midas_u(y_q ~ midasr::mls(y_q, 1:y_lag, 1) + 
-                                 lag(midasr::mls(x_m, 0:x_lag, 3), 1))
+        # Create formula with actual values
+        fml <- as.formula(sprintf("y_q ~ mls(y_q, 1:%d, 1) + lag(mls(x_m, 0:%d, 3), 1)", 
+                                  y_lag, x_lag))
+        fit <- midasr::midas_u(fml)
       }
     } else {
       # Current indicator (available within quarter)
+      # month_of_quarter specifies the ragged edge:
+      # - 0: end of quarter (all 3 months available)
+      # - 1: 2nd month of quarter available
+      # - 2: 1st month of quarter available
+      # The lag specification should reference past data, not future
+      # Use x_lag + 1 lags starting from month_of_quarter months back
+      # This ensures we're using historical data plus available current quarter data
+      
+      # Adjust lag range to ensure we don't reference non-existent data
+      # The lags should go backwards from month_of_quarter
+      # For month_of_quarter=2 (1st month available), use lags 2:(2+x_lag)
+      # This means: current month (lag 2), then 3, 4, 5, ... (going back in time)
+      
       if (y_lag == 0) {
-        fit <- midasr::midas_u(y_q ~ midasr::mls(x_m, month_of_quarter:(month_of_quarter + x_lag), 3))
+        # Create formula with actual values
+        # NOTE: Don't use midasr:: prefix - causes forecast() to fail with "condition has length > 1"
+        fml <- as.formula(sprintf("y_q ~ mls(x_m, %d:%d, 3)", 
+                                  month_of_quarter, month_of_quarter + x_lag))
+        fit <- midasr::midas_u(fml)
       } else {
-        fit <- midasr::midas_u(y_q ~ midasr::mls(y_q, 1:y_lag, 1) + 
-                                 midasr::mls(x_m, month_of_quarter:(month_of_quarter + x_lag), 3))
+        # Create formula with actual values
+        fml <- as.formula(sprintf("y_q ~ mls(y_q, 1:%d, 1) + mls(x_m, %d:%d, 3)", 
+                                  y_lag, month_of_quarter, month_of_quarter + x_lag))
+        fit <- midasr::midas_u(fml)
       }
     }
     
-    # Extract model information
+    # Extract model information and store original data for forecasting
     model <- list(
       fit = fit,
       coefficients = coef(fit),
@@ -203,7 +229,10 @@ fit_midas_unrestricted <- function(y_q, x_m, y_lag, x_lag, month_of_quarter = NU
       x_lag = x_lag,
       month_of_quarter = month_of_quarter,
       n_obs = length(fit$model$y),
-      window_cfg = window_cfg
+      window_cfg = window_cfg,
+      # Store original data for extending in forecast
+      y_data = y_q,
+      x_data = x_m
     )
     
     class(model) <- c("midas_unrestricted", "midas_model")
@@ -236,50 +265,92 @@ predict_midas_unrestricted <- function(model, y_new = NULL, x_new = NULL) {
   
   tryCatch({
     # Prepare newdata for forecast
-    # Following the pattern from the old Mexico code:
-    # - y: vector of recent quarterly values (for constructing lags)
-    # - x: vector of 3 monthly values (for one quarter, may include NAs)
+    # midasr::forecast() requires FULL time series extended with forecast period
+    # Following the Mexico_Midas.R pattern
     
-    newdata <- list()
+    # Extract variable names from model
+    model_data <- model$fit$model
+    y_name <- names(model_data)[1]
     
-    # For models with Y lags, provide recent quarterly values
-    # The midasr forecast needs these to construct the lagged terms
-    y_lag <- if (!is.null(model$y_lag)) model$y_lag else 0
+    # Extract X variable name from formula
+    # Skip the first mls() term if it's the Y variable (AR term)
+    model_terms <- terms(model$fit)
+    term_labels <- attr(model_terms, "term.labels")
     
-    if (y_lag > 0) {
-      if (!is.null(y_new)) {
-        # Ensure we have enough values
-        if (length(y_new) >= y_lag) {
-          newdata$y <- tail(y_new, y_lag)
+    x_name <- NULL
+    for (term_label in term_labels) {
+      if (grepl("mls\\([^,)]+", term_label)) {
+        # Match mls(var_name, ... or midasr::mls(var_name, ...
+        var_name <- sub(".*mls\\(([^,)]+).*", "\\1", term_label)
+        var_name <- gsub("lag\\(|\\)|midasr::", "", var_name)
+        var_name <- trimws(var_name)
+        
+        # Skip if this is the Y variable (AR term)
+        if (var_name != y_name) {
+          x_name <- var_name
+          break
         } else {
-          newdata$y <- y_new
         }
-      } else {
-        # Use the last values from the fitted model
-        newdata$y <- tail(model$fit$model$y, y_lag)
       }
     }
     
-    # For X (monthly indicator), provide the new monthly values
-    if (!is.null(x_new)) {
-      # Ensure x_new is a vector of length 3 (one quarter)
-      if (length(x_new) < 3) {
-        x_new <- c(x_new, rep(NA, 3 - length(x_new)))
-      } else if (length(x_new) > 3) {
+    if (is.null(x_name)) {
+      x_name <- "x_m"
+    }
+    
+    # Get historical data from stored model data
+    y_hist <- if (!is.null(model$y_data)) model$y_data else model$fit$model[[y_name]]
+    x_hist <- if (!is.null(model$x_data)) model$x_data else NULL
+    
+    # Check that x_hist exists
+    if (is.null(x_hist) || length(x_hist) == 0) {
+      warning("No historical X data available in model for forecasting")
+      return(list(
+        point = NA,
+        se = NA,
+        meta = list(error = "No historical X data in model")
+      ))
+    }
+    
+    # Extend Y by 1 period (quarterly) with NA for forecast
+    y_extended <- c(y_hist, NA)
+    
+    # Extend X by 3 periods (monthly) with new data
+    if (!is.null(x_new) && length(x_new) > 0) {
+      # Ensure exactly 3 values
+      x_len <- length(x_new)
+      if (x_len < 3) {
+        x_new <- c(x_new, rep(NA, 3 - x_len))
+      } else if (x_len > 3) {
         x_new <- tail(x_new, 3)
       }
-      newdata$x <- x_new
+    } else {
+      x_new <- rep(NA, 3)
     }
     
-    # Generate forecast
-    if (length(newdata) > 0) {
-      forecast_obj <- forecast::forecast(model$fit, newdata = newdata, method = "static")
-      point_forecast <- as.numeric(forecast_obj$mean)
-    } else {
-      # No new data, return NA
-      warning("No newdata provided for forecast")
-      point_forecast <- NA
+    x_extended <- c(x_hist, x_new)
+    
+    
+    # Preserve ts attributes if present
+    y_is_ts <- inherits(y_hist, "ts")
+    x_is_ts <- inherits(x_hist, "ts")
+    
+    if (y_is_ts) {
+      y_extended <- ts(y_extended, start = start(y_hist), frequency = frequency(y_hist))
     }
+    if (x_is_ts) {
+      x_extended <- ts(x_extended, start = start(x_hist), frequency = frequency(x_hist))
+    }
+    
+    # Create newdata list with proper variable names
+    newdata <- list()
+    newdata[[y_name]] <- y_extended
+    newdata[[x_name]] <- x_extended
+    
+    
+    # Generate forecast
+    forecast_obj <- forecast::forecast(model$fit, newdata = newdata, method = "static")
+    point_forecast <- tail(as.numeric(forecast_obj$mean), 1)
     
     # Calculate standard error from residuals
     se_forecast <- sd(model$residuals, na.rm = TRUE)
@@ -289,7 +360,7 @@ predict_midas_unrestricted <- function(model, y_new = NULL, x_new = NULL) {
       se = se_forecast,
       meta = list(
         model_type = "midas_unrestricted",
-        y_lag = y_lag,
+        y_lag = model$y_lag,
         x_lag = model$x_lag,
         month_of_quarter = model$month_of_quarter,
         n_obs = model$n_obs
@@ -356,7 +427,7 @@ calculate_midas_metrics <- function(model) {
 #' @param cfg Configuration object
 #' @return List with individual forecasts and BIC weights
 fit_or_update_midas_set <- function(vintage, lag_map, cfg) {
-  vars <- cfg$variables
+  # vars <- cfg$variables  # Removed: not currently used
   window_cfg <- cfg$window
   
   # Get quarterly target
@@ -416,7 +487,7 @@ fit_or_update_midas_set <- function(vintage, lag_map, cfg) {
         # Prepare newdata for forecast
         # For lagged indicators, use data through last complete quarter
         y_new <- if (spec$y_lag > 0) tail(y_q, spec$y_lag) else NULL
-        x_new <- extract_forecast_data(vintage, ind_id, is_lagged = TRUE)
+        x_new <- extract_forecast_data(vintage, ind_id, is_lagged = TRUE, lag_map = lag_map)
         
         # Generate forecast
         forecast <- predict_midas_unrestricted(model, y_new, x_new)
@@ -471,7 +542,7 @@ fit_or_update_midas_set <- function(vintage, lag_map, cfg) {
         
         # Prepare newdata for forecast
         y_new <- if (spec$y_lag > 0) tail(y_q, spec$y_lag) else NULL
-        x_new <- extract_forecast_data(vintage, ind_id, is_lagged = FALSE)
+        x_new <- extract_forecast_data(vintage, ind_id, is_lagged = FALSE, lag_map = lag_map)
         
         # Generate forecast
         forecast <- predict_midas_unrestricted(model, y_new, x_new)
@@ -509,7 +580,7 @@ fit_or_update_midas_set <- function(vintage, lag_map, cfg) {
     sorted_names <- names(weights)[sorted_indices]
     
     cat("\n--- BIC-Based Weights (Top 10) ---\n")
-    for (i in 1:min(10, length(sorted_names))) {
+    for (i in seq_len(min(10, length(sorted_names)))) {
       ind_id <- sorted_names[i]
       cat(sprintf("  %-25s: weight = %.3f, forecast = %6.2f\n", 
                   ind_id, weights[ind_id], midas_forecasts[[ind_id]]$point))
@@ -552,26 +623,63 @@ extract_indicator_data <- function(vintage, ind_id) {
 #' @param vintage Vintage snapshot
 #' @param ind_id Indicator ID
 #' @param is_lagged Whether this is a lagged indicator
-#' @return Vector of recent observations for forecasting
-extract_forecast_data <- function(vintage, ind_id, is_lagged = FALSE) {
+#' @param lag_map Optional lag map for ragged-edge handling
+#' @return Vector of recent observations for forecasting (length 3 for one quarter)
+extract_forecast_data <- function(vintage, ind_id, is_lagged = FALSE, lag_map = NULL) {
   x_m <- extract_indicator_data(vintage, ind_id)
   
   if (is.null(x_m)) {
-    return(NULL)
+    return(rep(NA, 3))  # Return 3 NAs if no data available
   }
   
+  # Note: Date information could be used for more sophisticated ragged-edge handling
+  # Currently using simpler logic based on lag_map availability flags
+  
   if (is_lagged) {
-    # For lagged indicators, take last 3 months (one quarter)
-    # These will be lagged by the model specification
-    return(tail(x_m, 3))
-  } else {
-    # For current indicators, take latest available data
-    # May include NAs for future months if not yet published
-    # Return last 3 observations, padding with NA if needed
-    last_obs <- tail(x_m, 3)
-    if (length(last_obs) < 3) {
-      last_obs <- c(last_obs, rep(NA, 3 - length(last_obs)))
+    # For lagged indicators (published with delay), use data from the previous quarter
+    # Take the last 3 months of available data
+    if (length(x_m) >= 3) {
+      return(tail(x_m, 3))
+    } else {
+      # Pad with NAs at the beginning if insufficient data
+      return(c(rep(NA, 3 - length(x_m)), x_m))
     }
-    return(last_obs)
+  } else {
+    # For current indicators (available within the quarter)
+    # We need to handle the ragged edge properly:
+    # - Some months in the current quarter may be available
+    # - Others may not be available yet (should be NA)
+    
+    # If we have lag_map information, use it to determine which months are available
+    if (!is.null(lag_map) && !is.null(lag_map$indicators) && ind_id %in% names(lag_map$indicators)) {
+      available_months <- lag_map$indicators[[ind_id]]$available_months
+      
+      # Build the forecast data based on availability
+      # Assuming quarter_months has 3 elements (months 1, 2, 3 of quarter)
+      forecast_data <- rep(NA, 3)
+      
+      for (i in seq_along(available_months)) {
+        if (i <= length(available_months) && available_months[[i]]) {
+          # This month is available, get the data
+          # The last i months of data correspond to the current quarter months
+          if (length(x_m) >= i) {
+            forecast_data[i] <- x_m[length(x_m) - (length(available_months) - i)]
+          }
+        }
+      }
+      
+      return(forecast_data)
+    } else {
+      # No lag_map available, use simple heuristic:
+      # Take the last available observations and pad with NAs
+      last_obs <- tail(x_m, 3)
+      
+      if (length(last_obs) < 3) {
+        # Pad with NAs at the end (future months not available yet)
+        last_obs <- c(last_obs, rep(NA, 3 - length(last_obs)))
+      }
+      
+      return(last_obs)
+    }
   }
 }

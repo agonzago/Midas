@@ -112,12 +112,51 @@ for (q in quarters) {
       h <- if (is.na(lm)) NA_integer_ else interval(month_end(lm), month_end(q_end)) %/% months(1)
       data.table(variable = v, last_month = lm, horizon_months = as.integer(h))
     }), fill = TRUE)
-    vintages[[i]] <- list(test_date = td, quarter = q, quarter_end = q_end, availability = avail_tbl)
+    
+    # Create actual data slices for this vintage
+    # Filter monthly data to only include observations available as of test_date
+    monthly_slice <- monthly[date <= td]
+    
+    # For each variable, further filter by its specific release date
+    monthly_vintage <- rbindlist(lapply(indicators, function(v) {
+      var_avail <- avail_tbl[variable == v]
+      if (nrow(var_avail) == 0 || is.na(var_avail$last_month[1])) {
+        return(NULL)
+      }
+      last_month_date <- var_avail$last_month[1]
+      var_data <- monthly_slice[date <= last_month_date, .(date, value = get(v))]
+      var_data[, variable := v]
+      return(var_data)
+    }), fill = TRUE)
+    
+    # Filter quarterly data up to test_date (only complete quarters)
+    quarterly_slice <- quarterly[date <= td]
+    
+    # Store both metadata and actual data
+    vintages[[i]] <- list(
+      test_date = td, 
+      quarter = q, 
+      quarter_end = q_end, 
+      availability = avail_tbl,
+      monthly_data = monthly_vintage,
+      quarterly_data = quarterly_slice
+    )
     names(vintages)[i] <- as.character(td)
   }
   out_file <- file.path(param$out_dir, paste0("pseudo_vintages_", q, ".rds"))
   saveRDS(vintages, out_file)
-  cat("Saved:", out_file, "\n")
+  cat("Saved:", out_file, "with", length(vintages), "weekly vintages\n")
+  
+  # Validation: check cumulative property
+  if (length(vintages) >= 2) {
+    v1_rows <- nrow(vintages[[1]]$monthly_data)
+    v2_rows <- nrow(vintages[[2]]$monthly_data)
+    if (v2_rows >= v1_rows) {
+      cat("  Validation: Week 2 has", v2_rows - v1_rows, "more rows than Week 1 (cumulative OK)\n")
+    } else {
+      cat("  WARNING: Week 2 has fewer rows than Week 1 - check cumulative logic!\n")
+    }
+  }
 }
 
 cat("Done.\n")
