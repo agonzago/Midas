@@ -1,10 +1,12 @@
 # Mexico MIDAS Rolling Window Out-of-Sample Evaluation
 # Tests the fixed MIDAS implementation with pseudo-real-time forecasts
-# Includes TPRF-MIDAS comparison
+# Includes TPRF-MIDAS comparison and MIDAS combination
 
 library(midasr)
 source("R/midas_models.R")
 source("R/tprf_models.R")
+source("R/combine.R")
+source("R/structural_breaks.R")
 
 cat("=== MIDAS Rolling Window Evaluation ===\n\n")
 
@@ -77,17 +79,34 @@ specs <- list(
   "MIDAS_AR2_lag4_m2" = list(
     type = "midas",
     y_lag = 2, x_lag = 4, month_of_quarter = 2, 
-    window_type = "expanding"
+    window_type = "expanding",
+    intercept_adjustment = "none"
   ),
   "MIDAS_AR2_lag4_m2_roll40" = list(
     type = "midas",
     y_lag = 2, x_lag = 4, month_of_quarter = 2, 
-    window_type = "rolling", window_length = 40
+    window_type = "rolling", window_length = 40,
+    intercept_adjustment = "none"
   ),
   "MIDAS_AR1_lag3_m2" = list(
     type = "midas",
     y_lag = 1, x_lag = 3, month_of_quarter = 2, 
-    window_type = "expanding"
+    window_type = "expanding",
+    intercept_adjustment = "none"
+  ),
+  "MIDAS_AR2_lag4_m2_ADJ" = list(
+    type = "midas",
+    y_lag = 2, x_lag = 4, month_of_quarter = 2, 
+    window_type = "expanding",
+    intercept_adjustment = "recent_errors",
+    adjustment_window = 4
+  ),
+  "MIDAS_AR1_lag3_m2_ADJ" = list(
+    type = "midas",
+    y_lag = 1, x_lag = 3, month_of_quarter = 2, 
+    window_type = "expanding",
+    intercept_adjustment = "recent_errors",
+    adjustment_window = 4
   ),
   "TPRF_AR2_lag4_m2" = list(
     type = "tprf",
@@ -316,6 +335,26 @@ for (spec_name in names(specs)) {
         }, error = function(e) {
           list(point = NA)
         })
+        
+        # Apply intercept adjustment if specified
+        if (!is.null(spec$intercept_adjustment) && spec$intercept_adjustment != "none") {
+          adjustment_method <- spec$intercept_adjustment
+          adjustment_window <- if (!is.null(spec$adjustment_window)) spec$adjustment_window else 4
+          
+          # Calculate adjustment based on recent errors
+          adjustment <- estimate_rolling_adjustment(
+            y_train, 
+            model$fitted_values, 
+            method = adjustment_method,
+            window = adjustment_window
+          )
+          
+          # Apply adjustment to forecast
+          if (!is.na(fc$point) && !is.na(adjustment)) {
+            fc$point <- fc$point + adjustment
+            fc$adjustment <- adjustment
+          }
+        }
       }
       
       forecasts[h] <- fc$point
@@ -402,7 +441,155 @@ if (length(results_all) == 0) {
     cat("TPRF improvement:", round(improvement, 3), "points\n")
   }
   
-  cat("\n✓ Rolling window evaluation completed!\n")
+  # =============================================================================
+  # MIDAS MODEL COMBINATION
+  # =============================================================================
+  
+  if (length(midas_models) >= 2) {
+    cat("\n=== MIDAS MODEL COMBINATION ===\n\n")
+    
+    # For each time period, combine MIDAS forecasts
+    n_forecasts <- length(results_all[[midas_models[1]]]$forecasts[[1]])
+    
+    combo_equal <- numeric(n_forecasts)
+    combo_inv_rmse <- numeric(n_forecasts)
+    combo_actuals <- results_all[[midas_models[1]]]$actuals[[1]]
+    combo_dates <- results_all[[midas_models[1]]]$forecast_dates[[1]]
+    
+    # Calculate inverse RMSE weights (based on full-sample RMSE)
+    midas_rmses <- results_df$rmse[results_df$spec %in% midas_models]
+    names(midas_rmses) <- midas_models
+    inv_rmse_weights <- 1 / midas_rmses
+    inv_rmse_weights <- inv_rmse_weights / sum(inv_rmse_weights)
+    
+    cat("MIDAS models included:", length(midas_models), "\n")
+    cat("Combination weights (inverse RMSE):\n")
+    for (i in seq_along(midas_models)) {
+      cat(sprintf("  %-30s: %.3f (RMSE=%.3f)\n", 
+                  midas_models[i], inv_rmse_weights[i], midas_rmses[i]))
+    }
+    cat("\n")
+    
+    # Combine forecasts for each time period
+    for (t in 1:n_forecasts) {
+      # Extract forecasts from all MIDAS models for this time period
+      midas_fcsts_t <- sapply(midas_models, function(m) {
+        results_all[[m]]$forecasts[[1]][t]
+      })
+      
+      # Remove NAs
+      valid_fcsts <- !is.na(midas_fcsts_t)
+      
+      if (sum(valid_fcsts) > 0) {
+        # Equal weights
+        combo_equal[t] <- mean(midas_fcsts_t[valid_fcsts])
+        
+        # Inverse RMSE weights (renormalize for available models)
+        weights_t <- inv_rmse_weights[valid_fcsts]
+        weights_t <- weights_t / sum(weights_t)
+        combo_inv_rmse[t] <- sum(weights_t * midas_fcsts_t[valid_fcsts])
+      } else {
+        combo_equal[t] <- NA
+        combo_inv_rmse[t] <- NA
+      }
+    }
+    
+    # Calculate combination performance
+    valid_combo <- !is.na(combo_equal) & !is.na(combo_actuals)
+    
+    if (sum(valid_combo) > 0) {
+      errors_equal <- combo_actuals[valid_combo] - combo_equal[valid_combo]
+      errors_inv_rmse <- combo_actuals[valid_combo] - combo_inv_rmse[valid_combo]
+      
+      rmse_equal <- sqrt(mean(errors_equal^2))
+      mae_equal <- mean(abs(errors_equal))
+      
+      rmse_inv_rmse <- sqrt(mean(errors_inv_rmse^2))
+      mae_inv_rmse <- mean(abs(errors_inv_rmse))
+      
+      cat("Combination Results:\n")
+      cat(sprintf("  Equal weights:   RMSE=%.3f, MAE=%.3f\n", rmse_equal, mae_equal))
+      cat(sprintf("  Inv-RMSE weights: RMSE=%.3f, MAE=%.3f\n", rmse_inv_rmse, mae_inv_rmse))
+      
+      # Compare to best individual MIDAS
+      best_midas_rmse <- min(results_df$rmse[results_df$spec %in% midas_models])
+      cat(sprintf("  Best individual:  RMSE=%.3f\n", best_midas_rmse))
+      
+      improvement_equal <- best_midas_rmse - rmse_equal
+      improvement_inv_rmse <- best_midas_rmse - rmse_inv_rmse
+      
+      cat("\nImprovement over best individual MIDAS:\n")
+      cat(sprintf("  Equal weights:    %.3f points (%.1f%%)\n", 
+                  improvement_equal, 100 * improvement_equal / best_midas_rmse))
+      cat(sprintf("  Inv-RMSE weights: %.3f points (%.1f%%)\n", 
+                  improvement_inv_rmse, 100 * improvement_inv_rmse / best_midas_rmse))
+      
+      # Store combination results in results_all for plotting
+      combo_equal_full <- data.frame(
+        spec = "MIDAS_COMBO_EQUAL",
+        n_forecasts = sum(valid_combo),
+        rmse = rmse_equal,
+        mae = mae_equal,
+        me = mean(errors_equal),
+        stringsAsFactors = FALSE
+      )
+      combo_equal_full$forecasts <- list(combo_equal)
+      combo_equal_full$actuals <- list(combo_actuals)
+      combo_equal_full$dates <- list(results_all[[midas_models[1]]]$dates[[1]])
+      combo_equal_full$forecast_dates <- list(combo_dates)
+      combo_equal_full$errors <- list(errors_equal)
+      
+      combo_inv_rmse_full <- data.frame(
+        spec = "MIDAS_COMBO_INV_RMSE",
+        n_forecasts = sum(valid_combo),
+        rmse = rmse_inv_rmse,
+        mae = mae_inv_rmse,
+        me = mean(errors_inv_rmse),
+        stringsAsFactors = FALSE
+      )
+      combo_inv_rmse_full$forecasts <- list(combo_inv_rmse)
+      combo_inv_rmse_full$actuals <- list(combo_actuals)
+      combo_inv_rmse_full$dates <- list(results_all[[midas_models[1]]]$dates[[1]])
+      combo_inv_rmse_full$forecast_dates <- list(combo_dates)
+      combo_inv_rmse_full$errors <- list(errors_inv_rmse)
+      
+      # Store in results_all for plotting
+      results_all[["MIDAS_COMBO_EQUAL"]] <- combo_equal_full
+      results_all[["MIDAS_COMBO_INV_RMSE"]] <- combo_inv_rmse_full
+      
+      # Add to results_df (only basic columns, matching structure)
+      combo_equal_row <- data.frame(
+        spec = "MIDAS_COMBO_EQUAL",
+        n_forecasts = sum(valid_combo),
+        rmse = rmse_equal,
+        mae = mae_equal,
+        me = mean(errors_equal),
+        stringsAsFactors = FALSE
+      )
+      
+      combo_inv_rmse_row <- data.frame(
+        spec = "MIDAS_COMBO_INV_RMSE",
+        n_forecasts = sum(valid_combo),
+        rmse = rmse_inv_rmse,
+        mae = mae_inv_rmse,
+        me = mean(errors_inv_rmse),
+        stringsAsFactors = FALSE
+      )
+      
+      # Ensure column order matches before rbind
+      results_df <- rbind(results_df[, c("spec", "n_forecasts", "rmse", "mae", "me")], 
+                          combo_equal_row, 
+                          combo_inv_rmse_row)
+      results_df <- results_df[order(results_df$rmse), ]
+      rownames(results_df) <- NULL
+    }
+    
+    cat("\n")
+  } else {
+    cat("\n(Skipping MIDAS combination - need at least 2 MIDAS models)\n\n")
+  }
+  
+  cat("✓ Rolling window evaluation completed!\n")
   
   # Create visualizations
   cat("\n=== CREATING VISUALIZATIONS ===\n\n")
@@ -690,6 +877,101 @@ if (length(results_all) == 0) {
             main = "RMSE Comparison: All MIDAS Models",
             ylab = "RMSE", las = 2, cex.names = 0.9,
             cex.main = 1.5, cex.lab = 1.3)
+    grid(col = "gray80")
+  }
+  
+  # ============================================================================
+  # SECTION 4: MIDAS COMBINATION RESULTS (if available)
+  # ============================================================================
+  
+  if ("MIDAS_COMBO_EQUAL" %in% names(results_all)) {
+    cat("Adding MIDAS combination plots...\n")
+    
+    fc_combo_equal <- results_all[["MIDAS_COMBO_EQUAL"]]$forecasts[[1]]
+    fc_combo_inv_rmse <- results_all[["MIDAS_COMBO_INV_RMSE"]]$forecasts[[1]]
+    act_combo <- results_all[["MIDAS_COMBO_EQUAL"]]$actuals[[1]]
+    dates_combo <- results_all[["MIDAS_COMBO_EQUAL"]]$forecast_dates[[1]]
+    valid_combo_plot <- !is.na(fc_combo_equal) & !is.na(act_combo)
+    
+    rmse_combo_equal <- results_df$rmse[results_df$spec == "MIDAS_COMBO_EQUAL"]
+    rmse_combo_inv_rmse <- results_df$rmse[results_df$spec == "MIDAS_COMBO_INV_RMSE"]
+    
+    # Page: MIDAS Combination - Title page
+    par(mfrow = c(1, 1), mar = c(2, 2, 3, 2))
+    plot.new()
+    text(0.5, 0.9, "MIDAS MODEL COMBINATION", cex = 2.5, font = 2)
+    text(0.5, 0.75, sprintf("Number of models combined: %d", length(midas_models)), cex = 1.5)
+    
+    text(0.5, 0.6, "Equal Weights", cex = 1.6, font = 2, col = "purple")
+    text(0.5, 0.53, sprintf("RMSE: %.3f", rmse_combo_equal), cex = 1.4)
+    
+    text(0.5, 0.40, "Inverse-RMSE Weights", cex = 1.6, font = 2, col = "darkorange")
+    text(0.5, 0.33, sprintf("RMSE: %.3f", rmse_combo_inv_rmse), cex = 1.4)
+    
+    best_individual_midas <- min(results_df$rmse[results_df$spec %in% midas_models])
+    improvement_equal <- (best_individual_midas - rmse_combo_equal) / best_individual_midas * 100
+    improvement_inv_rmse <- (best_individual_midas - rmse_combo_inv_rmse) / best_individual_midas * 100
+    
+    text(0.5, 0.18, sprintf("Best individual MIDAS: RMSE = %.3f", best_individual_midas), cex = 1.3)
+    text(0.5, 0.10, sprintf("Improvement: Equal = %.1f%%, Inv-RMSE = %.1f%%", 
+                            improvement_equal, improvement_inv_rmse), cex = 1.2, col = "darkblue")
+    
+    # Page: MIDAS Combination - Forecast vs Actual
+    par(mfrow = c(1, 1), mar = c(5, 5, 4, 2))
+    plot(dates_combo[valid_combo_plot], act_combo[valid_combo_plot], 
+         type = "l", lwd = 3, col = "black",
+         xlab = "Time", ylab = "GDP Growth (%)",
+         main = "MIDAS Combinations: Forecast vs Actual",
+         ylim = range(c(act_combo[valid_combo_plot], 
+                       fc_combo_equal[valid_combo_plot], 
+                       fc_combo_inv_rmse[valid_combo_plot]), na.rm = TRUE),
+         cex.main = 1.5, cex.lab = 1.3)
+    lines(dates_combo[valid_combo_plot], fc_combo_equal[valid_combo_plot], 
+          col = "purple", lwd = 2.5, lty = 1)
+    lines(dates_combo[valid_combo_plot], fc_combo_inv_rmse[valid_combo_plot], 
+          col = "darkorange", lwd = 2.5, lty = 2)
+    lines(dates_combo[valid_combo_plot], fc_midas[valid_combo_plot], 
+          col = adjustcolor("steelblue", alpha.f = 0.6), lwd = 1.5, lty = 3)
+    legend("topright", 
+           legend = c("Actual", 
+                     sprintf("Equal (RMSE: %.2f)", rmse_combo_equal),
+                     sprintf("Inv-RMSE (RMSE: %.2f)", rmse_combo_inv_rmse),
+                     sprintf("Best Individual (RMSE: %.2f)", best_individual_midas)),
+           col = c("black", "purple", "darkorange", "steelblue"), 
+           lwd = c(3, 2.5, 2.5, 1.5), lty = c(1, 1, 2, 3), cex = 1.1)
+    grid(col = "gray80")
+    
+    # Page: MIDAS Combination - Error Comparison
+    errors_combo_equal <- act_combo[valid_combo_plot] - fc_combo_equal[valid_combo_plot]
+    errors_combo_inv_rmse <- act_combo[valid_combo_plot] - fc_combo_inv_rmse[valid_combo_plot]
+    
+    par(mfrow = c(1, 1), mar = c(5, 5, 4, 2))
+    plot(dates_combo[valid_combo_plot], errors_combo_equal, 
+         type = "l", lwd = 2.5, col = "purple",
+         xlab = "Time", ylab = "Forecast Error (%)",
+         main = "MIDAS Combinations: Forecast Errors",
+         ylim = range(c(errors_combo_equal, errors_combo_inv_rmse)),
+         cex.main = 1.5, cex.lab = 1.3)
+    lines(dates_combo[valid_combo_plot], errors_combo_inv_rmse, 
+          col = "darkorange", lwd = 2.5, lty = 2)
+    abline(h = 0, col = "black", lwd = 2)
+    legend("topright", 
+           legend = c("Equal Weights", "Inv-RMSE Weights"),
+           col = c("purple", "darkorange"), lwd = 2.5, lty = c(1, 2), cex = 1.2)
+    grid(col = "gray80")
+    
+    # Page: All Models Comparison (including combinations)
+    par(mfrow = c(1, 1), mar = c(9, 5, 4, 2))
+    combo_colors <- ifelse(grepl("^TPRF_", results_df$spec), "darkgreen",
+                    ifelse(grepl("^MIDAS_COMBO_", results_df$spec), "purple", "steelblue"))
+    barplot(results_df$rmse, names.arg = results_df$spec, 
+            col = combo_colors,
+            main = "RMSE Comparison: All Models + Combinations",
+            ylab = "RMSE", las = 2, cex.names = 0.8,
+            cex.main = 1.5, cex.lab = 1.3)
+    legend("topright", 
+           legend = c("MIDAS Individual", "MIDAS Combination", "TPRF"), 
+           fill = c("steelblue", "purple", "darkgreen"), cex = 1.1)
     grid(col = "gray80")
   }
   

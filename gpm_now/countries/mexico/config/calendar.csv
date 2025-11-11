@@ -1,0 +1,71 @@
+release_date,series_id,ref_period,source_url,note
+# 2024 Q1 Monthly Indicators - Released during January-March 2024
+2024-01-15,ipi_mfg,2023-12,https://ibge.gov.br/pim,Industrial production Dec 2023 (45-day lag)
+2024-01-15,ibc_br_m,2023-11,https://bcb.gov.br/ibc,IBC-Br Nov 2023 (monthly GDP proxy)
+2024-01-20,retail_real,2023-12,https://ibge.gov.br/pmc,Retail sales Dec 2023 (20-day lag)
+2024-01-25,credit_total,2023-12,https://bcb.gov.br/credit,Total credit Dec 2023 (25-day lag)
+2024-01-30,employment,2023-12,https://ibge.gov.br/pnad,Employment Dec 2023 (30-day lag)
+2024-02-15,ipi_mfg,2024-01,https://ibge.gov.br/pim,Industrial production Jan 2024
+2024-02-15,ibc_br_m,2023-12,https://bcb.gov.br/ibc,IBC-Br Dec 2023 (monthly GDP proxy)
+2024-02-20,retail_real,2024-01,https://ibge.gov.br/pmc,Retail sales Jan 2024
+2024-02-25,credit_total,2024-01,https://bcb.gov.br/credit,Total credit Jan 2024
+2024-02-28,employment,2024-01,https://ibge.gov.br/pnad,Employment Jan 2024
+2024-03-15,ipi_mfg,2024-02,https://ibge.gov.br/pim,Industrial production Feb 2024
+2024-03-15,ibc_br_m,2024-01,https://bcb.gov.br/ibc,IBC-Br Jan 2024 (monthly GDP proxy)
+2024-03-20,retail_real,2024-02,https://ibge.gov.br/pmc,Retail sales Feb 2024
+2024-03-25,credit_total,2024-02,https://bcb.gov.br/credit,Total credit Feb 2024
+2024-03-28,employment,2024-02,https://ibge.gov.br/pnad,Employment Feb 2024
+# 2024 Q1 GDP - Released in late May (quarterly target with ~2 month lag)
+2024-05-30,gdp_q_qoq_sa,2024Q1,https://ibge.gov.br/contas-nacionais,Quarterly GDP Q1 2024 (official target)
+# 2024 Q2 Monthly Indicators - Released during April-June 2024  
+2024-04-15,ipi_mfg,2024-03,https://ibge.gov.br/pim,Industrial production Mar 2024
+2024-04-15,ibc_br_m,2024-02,https://bcb.gov.br/ibc,IBC-Br Feb 2024 (monthly GDP proxy)
+2024-04-20,retail_real,2024-03,https://ibge.gov.br/pmc,Retail sales Mar 2024
+2024-04-25,credit_total,2024-03,https://bcb.gov.br/credit,Total credit Mar 2024
+2024-04-30,employment,2024-03,https://ibge.gov.br/pnad,Employment Mar 2024
+2024-05-15,ipi_mfg,2024-04,https://ibge.gov.br/pim,Industrial production Apr 2024
+2024-05-15,ibc_br_m,2024-03,https://bcb.gov.br/ibc,IBC-Br Mar 2024 (monthly GDP proxy)
+2024-05-20,retail_real,2024-04,https://ibge.gov.br/pmc,Retail sales Apr 2024
+2024-05-25,credit_total,2024-04,https://bcb.gov.br/credit,Total credit Apr 2024
+2024-05-30,employment,2024-04,https://ibge.gov.br/pnad,Employment Apr 2024
+2024-06-15,ipi_mfg,2024-05,https://ibge.gov.br/pim,Industrial production May 2024
+2024-06-15,ibc_br_m,2024-04,https://bcb.gov.br/ibc,IBC-Br Apr 2024 (monthly GDP proxy)
+2024-06-20,retail_real,2024-05,https://ibge.gov.br/pmc,Retail sales May 2024
+2024-06-25,credit_total,2024-05,https://bcb.gov.br/credit,Total credit May 2024
+2024-06-28,employment,2024-05,https://ibge.gov.br/pnad,Employment May 2024
+# 2024 Q2 GDP - Released in late August
+2024-08-30,gdp_q_qoq_sa,2024Q2,https://ibge.gov.br/contas-nacionais,Quarterly GDP Q2 2024 (official target)
+# 2024 Q3 Monthly Indicators - Released during July-September 2024
+2024-07-15,ipi_mfg,2024-06,https://ibge.gov.br/pim,Industrial production Jun 2024
+2024-07-15,ibc_br_m,2024-05,https://bcb.gov.br/ibc,IBC-Br May 2024 (monthly GDP proxy)
+2024-07-20,retail_real,2024-06,https://ibge.gov.br/pmc,Retail sales Jun 2024
+2024-07-25,credit_total,2024-06,https://bcb.gov.br/credit,Total credit Jun 2024
+2024-07-30,employment,2024-06,https://ibge.gov.br/pnad,Employment Jun 2024
+2024-08-15,ipi_mfg,2024-07,https://ibge.gov.br/pim,Industrial production Jul 2024
+2024-08-15,ibc_br_m,2024-06,https://bcb.gov.br/ibc,IBC-Br Jun 2024 (monthly GDP proxy)
+2024-08-20,retail_real,2024-07,https://ibge.gov.br/pmc,Retail sales Jul 2024
+2024-08-25,credit_total,2024-07,https://bcb.gov.br/credit,Total credit Jul 2024
+2024-08-30,employment,2024-07,https://ibge.gov.br/pnad,Employment Jul 2024
+2024-09-15,ipi_mfg,2024-08,https://ibge.gov.br/pim,Industrial production Aug 2024
+2024-09-15,ibc_br_m,2024-07,https://bcb.gov.br/ibc,IBC-Br Jul 2024 (monthly GDP proxy)
+2024-09-20,retail_real,2024-08,https://ibge.gov.br/pmc,Retail sales Aug 2024
+2024-09-25,credit_total,2024-08,https://bcb.gov.br/credit,Total credit Aug 2024
+2024-09-28,employment,2024-08,https://ibge.gov.br/pnad,Employment Aug 2024
+# 2024 Q3 GDP - Released in late November
+2024-11-30,gdp_q_qoq_sa,2024Q3,https://ibge.gov.br/contas-nacionais,Quarterly GDP Q3 2024 (official target)
+# 2024 Q4 Monthly Indicators - Released during October-December 2024
+2024-10-15,ipi_mfg,2024-09,https://ibge.gov.br/pim,Industrial production Sep 2024
+2024-10-15,ibc_br_m,2024-08,https://bcb.gov.br/ibc,IBC-Br Aug 2024 (monthly GDP proxy)
+2024-10-20,retail_real,2024-09,https://ibge.gov.br/pmc,Retail sales Sep 2024
+2024-10-25,credit_total,2024-09,https://bcb.gov.br/credit,Total credit Sep 2024
+2024-10-30,employment,2024-09,https://ibge.gov.br/pnad,Employment Sep 2024
+2024-11-15,ipi_mfg,2024-10,https://ibge.gov.br/pim,Industrial production Oct 2024
+2024-11-15,ibc_br_m,2024-09,https://bcb.gov.br/ibc,IBC-Br Sep 2024 (monthly GDP proxy)
+2024-11-20,retail_real,2024-10,https://ibge.gov.br/pmc,Retail sales Oct 2024
+2024-11-25,credit_total,2024-10,https://bcb.gov.br/credit,Total credit Oct 2024
+2024-11-30,employment,2024-10,https://ibge.gov.br/pnad,Employment Oct 2024
+2024-12-15,ipi_mfg,2024-11,https://ibge.gov.br/pim,Industrial production Nov 2024
+2024-12-15,ibc_br_m,2024-10,https://bcb.gov.br/ibc,IBC-Br Oct 2024 (monthly GDP proxy)
+2024-12-20,retail_real,2024-11,https://ibge.gov.br/pmc,Retail sales Nov 2024
+2024-12-25,credit_total,2024-11,https://bcb.gov.br/credit,Total credit Nov 2024
+2024-12-30,employment,2024-11,https://ibge.gov.br/pnad,Employment Nov 2024

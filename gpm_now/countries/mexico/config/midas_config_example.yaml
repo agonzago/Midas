@@ -1,0 +1,54 @@
+# MIDAS Configuration Example
+# This file shows how to configure MIDAS models with BIC-based selection and weighting
+
+# MIDAS model selection parameters
+midas_max_y_lag: 4  # Maximum quarterly lags to consider
+midas_max_x_lag: 6  # Maximum monthly lags to consider (in months)
+midas_month_of_quarter: 2  # For current indicators: 0=end, 1=2nd month, 2=1st month
+
+# Forecast combination scheme for MIDAS models
+# Options: "equal", "inv_mse_shrink", "inv_bic", "bic_weights"
+midas_combination_scheme: "inv_bic"
+
+# Lagged indicators (NOT available in first month of quarter - published with 2-3 month delay)
+# These use the lagged MIDAS specification: lag(mls(x, 0:xlag, 3), 1)
+lagged_indicators:
+  - "IMP"                    # Imports
+  - "IP"                     # Industrial Production
+  - "UNEMP"                  # Unemployment
+  - "PETRO_EXP"              # Petroleum Exports
+  - "PETRO_PROD"             # Petroleum Production
+  - "RETAIL_SALES"           # Retail Sales
+  - "TRADE_BAL"              # Trade Balance
+  - "AUTO_SALES_US"          # Auto Sales (US)
+  - "CAR_IMP_US"             # Car Imports (US)
+  - "TRUCK_IMP_US"           # Truck Imports (US)
+  - "EXP"                    # Exports
+
+# Current indicators (available in first month of quarter - early releases/surveys)
+# These use the current MIDAS specification: mls(x, month_of_quarter:(month_of_quarter+xlag), 3)
+current_indicators:
+  - "CAP_UTILI_US"           # Capacity Utilization (US)
+  - "BUS_CLIM_MFG"           # Business Climate Manufacturing
+  - "BUS_CLIM_NONMFG"        # Business Climate Non-Manufacturing
+  - "CONSUMER_CONF"          # Consumer Confidence
+  - "PRODUCER_CONF"          # Producer Confidence
+  - "AUTO_PROD"              # Auto Production
+  - "AUTO_EXPORT"            # Auto Exports
+  - "AUTO_SALES"             # Auto Sales
+  - "TRUCK_SALES"            # Truck Sales
+  - "PMI_MANU"               # PMI Manufacturing
+  - "CONS_SENTI_US"          # Consumer Sentiment (US)
+  - "CONS_CONF_US"           # Consumer Confidence (US)
+  - "PMI_COMP_US"            # PMI Composite (US)
+  - "RETAIL_SALES_US"        # Retail Sales (US)
+  - "HOUSING_STARTS_US"      # Housing Starts (US)
+  - "IP_US"                  # Industrial Production (US)
+
+# Window configuration for rolling estimation
+window:
+  type: "expanding"          # or "rolling"
+  length_quarters: 60        # Only used if type = "rolling"
+
+# Re-estimation settings
+reestimate_on_new_data: true

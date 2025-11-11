@@ -13,16 +13,9 @@ run_weekly_nowcast <- function(as_of_date = Sys.Date(),
                                 output_path = "output") {
   
   # Source all required modules
-  source("R/utils.R")
-  source("R/io.R")
-  source("R/transforms.R")
-  source("R/lagmap.R")
-  source("R/midas_models.R")
-  source("R/tprf_models.R")
-  source("R/dfm_models.R")
-  source("R/selection.R")
-  source("R/combine.R")
-  source("R/news.R")
+  # Note: Common functions should be sourced before calling this function
+  # They are sourced in run_brazil_nowcast.R
+  source("R/io.R")  # Country-specific I/O functions
   
   log_file <- file.path(output_path, "logs", paste0("nowcast_", as_of_date, ".log"))
   dir.create(dirname(log_file), showWarnings = FALSE, recursive = TRUE)
