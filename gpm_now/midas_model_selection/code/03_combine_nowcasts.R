@@ -39,6 +39,15 @@ if (!"bic_avg" %in% names(sel_dt)) {
 # Ensure types
 now_dt[, test_date := as.Date(test_date)]
 
+# Add month_of_quarter (1, 2, or 3) based on test_date
+now_dt[, month_of_quarter := {
+  q_start <- floor_date(as.Date(paste0(quarter, "-01"), format = "%YQ%q-%d"), "quarter")
+  as.integer(ceiling(as.numeric(difftime(test_date, q_start, units = "days")) / 30.5))
+}]
+# Clamp to 1-3 range
+now_dt[month_of_quarter < 1, month_of_quarter := 1L]
+now_dt[month_of_quarter > 3, month_of_quarter := 3L]
+
 # Join weights into nowcasts
 weights_dt <- sel_dt[, .(variable, bic_avg, rmse)]
 now_dt <- merge(now_dt, weights_dt, by = "variable", all.x = TRUE)
@@ -90,6 +99,9 @@ agg <- now_dt[!is.na(y_hat), {
   comb_bic  <- if (length(wb) == 0 || all(is.na(wb))) NA_real_ else sum(wb * dt$y_hat, na.rm = TRUE)
   comb_rmse <- if (length(wr) == 0 || all(is.na(wr))) NA_real_ else sum(wr * dt$y_hat, na.rm = TRUE)
   comb_equal <- if (length(we) == 0 || all(is.na(we))) NA_real_ else sum(we * dt$y_hat, na.rm = TRUE)
+  
+  # Add simple trimmed mean combination (Gene's approach)
+  comb_trimmed <- mean(dt$y_hat, trim = param$trim_prop, na.rm = TRUE)
 
   # distribution stats
   yh <- dt$y_hat
@@ -111,14 +123,19 @@ agg <- now_dt[!is.na(y_hat), {
 
   # y_true should be same across variables for a given quarter; pick first non-NA
   y_true_val <- suppressWarnings(dt$y_true[which(!is.na(dt$y_true))[1]])
+  
+  # Get month_of_quarter (should be same for all in group, take first)
+  moq <- if ("month_of_quarter" %in% names(dt)) dt$month_of_quarter[1] else NA_integer_
 
   .(n_models_before = n_before,
     n_models = n,
+    month_of_quarter = moq,
     drop_metric = tolower(param$drop_metric),
     drop_prop = param$drop_worst_prop,
     comb_bic = comb_bic,
     comb_rmse = comb_rmse,
     comb_equal = comb_equal,
+    comb_trimmed = comb_trimmed,
     p10 = p10, p25 = p25, median = med, p75 = p75, p90 = p90,
     mean = mu, sd = sdv, min = mn, max = mx,
     trimmed_mean = trm, trimmed_low = trim_low, trimmed_high = trim_high, trimmed_range = trim_range,

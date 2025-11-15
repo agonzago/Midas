@@ -28,7 +28,7 @@ param <- list(
   vintages_dir   = ifelse(length(args) >= 3, args[[3]], file.path(".", "..", "midas_model_selection", "data", "vintages")),
   out_sel_dir    = ifelse(length(args) >= 4, args[[4]], file.path(".", "..", "midas_model_selection", "data", "selection")),
   out_now_dir    = ifelse(length(args) >= 5, args[[5]], file.path(".", "..", "midas_model_selection", "data", "nowcasts")),
-  gdp_lags_grid  = if (length(args) >= 6) as.integer(strsplit(args[[6]], ",")[[1]]) else 1:4,
+  gdp_lags_grid  = if (length(args) >= 6) as.integer(strsplit(args[[6]], ",")[[1]]) else 0:4,
   k_grid         = if (length(args) >= 7) as.integer(strsplit(args[[7]], ",")[[1]]) else 3:9,
   transform_tags = if (length(args) >= 8) strsplit(args[[8]], ",")[[1]] else c("DA_", "DA3m_"),
   target_col     = ifelse(length(args) >= 9, args[[9]], "DA_GDP"),
