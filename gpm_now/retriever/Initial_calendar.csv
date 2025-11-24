@@ -12,35 +12,35 @@ GM366_ERC366,ipea,Daily,All,All,0,EOD,Taxa de câmbio dólar comercial para comp
 28504,IBGE,Monthly,Varies,Varies,25,9:30 BRL,Physical Production - Mineral extraction - Seasonally Adjusted Industrial Production,BCB Credit Report - Earmarked total
 28505,IBGE,Monthly,Varies,Varies,25,9:30 BRL,Physical Production - Manufacturing industry - Seasonally Adjusted Industrial Production,BCB Credit Report - Total outstanding balance
 28506,IBGE,Monthly,Varies,Varies,25,9:30 BRL,Physical Production - Capital goods - Seasonally Adjusted Industrial Production,BCB Credit Report - Non-earmarked corporate
-28507,IBGE,Unknown,Varies,Varies,NA,NA,Physical Production - Intermediate goods - Seasonally Adjusted Industrial Production,No rule defined. Please research.
+28507,IBGE,Monthly,Varies,Varies,25,9:00 BRL,Physical Production - Intermediate goods - Seasonally Adjusted Industrial Production,Updated based on general industry lag.
 28508,IBGE,Monthly,Varies,Varies,25,9:30 BRL,Physical Production - Consumer goods - Seasonally Adjusted Industrial Production,BCB Credit Report - Earmarked corporate
 28509,IBGE,Monthly,Varies,Varies,25,9:30 BRL,Physical Production - Durable goods - Seasonally Adjusted Industrial Production,BCB Credit Report - Total corporate
-28510,IBGE,Unknown,Varies,Varies,NA,NA,Physical Production - Semidurable and nondurable goods - Seasonally Adjusted Industrial Production,No rule defined. Please research.
+28510,IBGE,Monthly,Varies,Varies,25,9:00 BRL,Physical Production - Semidurable and nondurable goods - Seasonally Adjusted Industrial Production,Updated based on general industry lag.
 28511,IBGE,Monthly,Varies,Varies,25,9:30 BRL,Physical Production - Production of construction inputs - Seasonally Adjusted Industrial Production,BCB Credit Report - Non-earmarked household
 28546,BCB-Depec,Monthly,Varies,Varies,25,9:30 BRL,Steel production - Seasonally Adjusted,BCB Credit Report - New non-earmarked corporate loans
 28553,BCB-Depec,Monthly,Varies,Varies,25,9:30 BRL,Heavy vehicle traffic on toll roads - ABCR - Seasonally Adusted,BCB Credit Report - New earmarked household loans
 28554,CNI,Monthly,Varies,Varies,25,9:30 BRL,Capacity utilization – manufacturing industry - Seasonally Adjusted,BCB Credit Report - New total household loans
 28555,CNI,Monthly,Varies,Varies,25,9:30 BRL,Real industrial sales (2016=100) - (CNI) - Seasonally Adjusted,BCB Credit Report - New non-earmarked total loans
 28556,CNI,Monthly,Varies,Varies,25,9:30 BRL,Hours worked in production – manufacturing industry (2016=100) - Seasonally Adjusted,BCB Credit Report - New earmarked total loans
-28559,CNI,Unknown,Varies,Varies,NA,NA,Real average earnings in manufacturing (2016=100) - Seasonally Adjusted,No rule defined. Please research.
+28559,CNI,Monthly,Varies,Varies,25,9:30 BRL,Real average earnings in manufacturing (2016=100) - Seasonally Adjusted,Updated based on CNI lag.
 28560,CNI,Monthly,Varies,Varies,25,9:30 BRL,Real total payroll – manufacturing industry (2016=100) - Seasonally Adjusted,BCB Credit Report - Avg interest rate - earmarked corp
 28561,FGV,Monthly,Varies,Varies,25,9:30 BRL,Capacity utilization – manufacturing industry (FGV) - Seasonally Adjusted,BCB Credit Report - Avg interest rate - total corp
 28527,Anfavea,Monthly,Varies,Varies,25,9:30 BRL,Vehicles production (total) - Seasonally Adjusted,BCB Credit Report - Spread - non-earmarked corp
 28528,Anfavea,Monthly,Varies,Varies,25,9:30 BRL,Vehicle sales (total) - Seasonally Adjusted,BCB Credit Report - Spread - earmarked corp
 28529,Anfavea,Monthly,Varies,Varies,25,9:30 BRL,Domestic vehicle sales - Seasonally Adjusted,BCB Credit Report - Spread - total corp
 28530,Anfavea,Monthly,Varies,Varies,25,9:30 BRL,Vehicle exports - Seasonally Adjusted,BCB Credit Report - Spread - non-earmarked hh
-1402,Eletrobras,Unknown,Varies,Varies,NA,NA,Brazil - commercial,No rule defined. Please research.
-1403,Eletrobras,Unknown,Varies,Varies,NA,NA,Brazil - residential,No rule defined. Please research.
-1404,Eletrobras,Unknown,Varies,Varies,NA,NA,Brazil - industrial,No rule defined. Please research.
-1406,Eletrobras,Unknown,Varies,Varies,NA,NA,Brazil - total,No rule defined. Please research.
-1391,ANP,Unknown,Varies,Varies,NA,NA,Total – 1391 Petroleom,No rule defined. Please research.
-28473,IBGE,Unknown,Varies,Varies,NA,NA,Total - Brazil - Seasonally Adjusted Sales volume index in the retail sector,No rule defined. Please research.
-4393,Fecomercio,Unknown,Varies,Varies,NA,NA,Consumer confidence index,No rule defined. Please research.
-4394,Fecomercio,Unknown,Varies,Varies,NA,NA,Current economic conditions index,No rule defined. Please research.
+1402,Eletrobras,Monthly,Varies,Varies,35,9:00 BRL,Brazil - commercial,Updated based on EPE lag.
+1403,Eletrobras,Monthly,Varies,Varies,35,9:00 BRL,Brazil - residential,Updated based on EPE lag.
+1404,Eletrobras,Monthly,Varies,Varies,35,9:00 BRL,Brazil - industrial,Updated based on EPE lag.
+1406,Eletrobras,Monthly,Varies,Varies,35,9:00 BRL,Brazil - total,Updated based on EPE lag.
+1391,ANP,Monthly,Varies,Varies,30,9:00 BRL,Total – 1391 Petroleom,Updated based on ANP lag.
+28473,IBGE,Monthly,Varies,Varies,35,9:00 BRL,Total - Brazil - Seasonally Adjusted Sales volume index in the retail sector,Updated based on Retail lag.
+4393,Fecomercio,Monthly,Varies,Varies,5,9:00 BRL,Consumer confidence index,Updated based on Fecomercio lag.
+4394,Fecomercio,Monthly,Varies,Varies,5,9:00 BRL,Current economic conditions index,Updated based on Fecomercio lag.
 4395,Fecomercio,Monthly,Varies,3,45,9:00 BRL,Future expectations index,IBC-Br (Economic Activity Index). Approx 45-day lag.
-20339,BCB and FGV,Unknown,Varies,Varies,NA,NA,ICS-Dessazonalizado,No rule defined. Please research.
-20340,BCB and FGV,Unknown,Varies,Varies,NA,NA,ISA-S Dessazonalizado,No rule defined. Please research.
-20341,BCB and FGV,Unknown,Varies,Varies,NA,NA,IE-S Dessazonalizado,No rule defined. Please research.
+20339,BCB and FGV,Monthly,Varies,Varies,0,9:00 BRL,ICS-Dessazonalizado,Updated based on FGV lag.
+20340,BCB and FGV,Monthly,Varies,Varies,0,9:00 BRL,ISA-S Dessazonalizado,Updated based on FGV lag.
+20341,BCB and FGV,Monthly,Varies,Varies,0,9:00 BRL,IE-S Dessazonalizado,Updated based on FGV lag.
 28549,Abras,Monthly,Varies,Varies,25,9:30 BRL,Supermarkets sales - Seasonally Adjusted,BCB Credit Report - New total corporate loans
 433,IBGE,Unknown,Varies,Varies,NA,NA,Broad National Consumer Price Index (IPCA),No rule defined. Please research.
 11427,BCB-Depec,Unknown,Varies,Varies,NA,NA,EX0 Core IPCA,No rule defined. Please research.
@@ -60,14 +60,14 @@ GM366_ERC366,ipea,Daily,All,All,0,EOD,Taxa de câmbio dólar comercial para comp
 22109,IBGE,Monthly,Varies,Varies,25,9:30 BRL,GDP at market prices SCN-2010,BCB Fiscal Report - Nominal Result. Around 25th.
 Next 20 rows:,,,,,,,,
 CPIAUCSL,fred,Monthly,Varies,2,13,8:30 EST,Consumer Price Index for All Urban Consumers: All Items (SA),"US CPI-U. Released 2nd week, around 13th."
-UMCSENT,fred,Unknown,Varies,Varies,NA,NA,University of Michigan: Consumer Sentiment (NSA),No rule defined. Please research.
-CSCICP03USM665S,fred,Unknown,Varies,Varies,NA,NA,Consumer Confidence Index (OECD Amplitude Adjusted) (SA),No rule defined. Please research.
-NAPM,fred,Unknown,Varies,Varies,NA,NA,ISM Manufacturing: PMI Composite Index (SA),No rule defined. Please research.
+UMCSENT,fred,Monthly,Varies,Varies,0,10:00 EST,University of Michigan: Consumer Sentiment (NSA),Updated based on Michigan lag.
+CSCICP03USM665S,fred,Monthly,Varies,Varies,5,9:00 EST,Consumer Confidence Index (OECD Amplitude Adjusted) (SA),Updated based on OECD lag.
+NAPM,fred,Monthly,Varies,Varies,3,10:00 EST,ISM Manufacturing: PMI Composite Index (SA),Updated based on ISM lag.
 PAYEMS,fred,Monthly,Friday,1,7,8:30 EST,All Employees: Total Nonfarm (SA),US Non-Farm Payrolls. 1st Friday of month.
-RSAFS,fred,Unknown,Varies,Varies,NA,NA,Advance Retail Sales: Retail and Food Services (SA),No rule defined. Please research.
+RSAFS,fred,Monthly,Varies,Varies,16,8:30 EST,Advance Retail Sales: Retail and Food Services (SA),Updated based on Census lag.
 INDPRO,fred,Monthly,Varies,3,15,9:15 EST,Industrial Production: Total Index (SA),US Industrial Production. Released mid-month.
-TCU,fred,Unknown,Varies,Varies,NA,NA,Capacity Utilization: Total Index (SA),No rule defined. Please research.
-HOUST,fred,Unknown,Varies,Varies,NA,NA,New Privately-Owned Housing Units Started: Total (SAAR),No rule defined. Please research.
+TCU,fred,Monthly,Varies,Varies,16,9:15 EST,Capacity Utilization: Total Index (SA),Updated based on Fed lag.
+HOUST,fred,Monthly,Varies,Varies,18,8:30 EST,New Privately-Owned Housing Units Started: Total (SAAR),Updated based on Census lag.
 TOTALSA,fred,Monthly,Varies,1,3,Varies,Total Vehicle Sales (SAAR),"US Total Vehicle Sales. Released by Wards, ~1st-3rd business day."
 AITGIAS,fred,Monthly,Varies,1,35,8:30 EST,Car_imporst,US Imports - Automotive. Part of Trade Balance release.
 HTRUCKSSAAR,fred,Monthly,Varies,1,3,Varies,Truck_imports,"US Heavy Truck Sales. Released by Wards, ~1st-3rd business day."

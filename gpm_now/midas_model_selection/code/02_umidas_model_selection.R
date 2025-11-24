@@ -32,7 +32,8 @@ param <- list(
   k_grid         = if (length(args) >= 7) as.integer(strsplit(args[[7]], ",")[[1]]) else 3:9,
   transform_tags = if (length(args) >= 8) strsplit(args[[8]], ",")[[1]] else c("DA_", "DA3m_"),
   target_col     = ifelse(length(args) >= 9, args[[9]], "DA_GDP"),
-  n_cores        = if (length(args) >= 10) as.integer(args[[10]]) else max(1L, parallel::detectCores() - 1L)
+  n_cores        = if (length(args) >= 10) as.integer(args[[10]]) else max(1L, parallel::detectCores() - 1L),
+  indicator_list = if (length(args) >= 11 && args[[11]] != "") strsplit(args[[11]], ",")[[1]] else NULL
 )
 
 for (d in c(param$out_sel_dir, param$out_now_dir)) if (!dir.exists(d)) dir.create(d, recursive = TRUE, showWarnings = FALSE)
@@ -70,10 +71,22 @@ for (q in names(vmap)) {
 }
 
 all_vars <- setdiff(names(monthly), "date")
-sel_vars <- unique(unlist(lapply(param$transform_tags, function(tag) all_vars[str_detect(all_vars, fixed(tag))])))
-if (length(sel_vars) == 0) {
-  warning("No variables matched transform tags; falling back to DA_ and DA3m_ prefixes.")
-  sel_vars <- all_vars[str_detect(all_vars, "^(DA_|DA3m_)")]
+
+if (!is.null(param$indicator_list)) {
+  # Use explicit list of indicators
+  sel_vars <- intersect(param$indicator_list, all_vars)
+  if (length(sel_vars) < length(param$indicator_list)) {
+    missing <- setdiff(param$indicator_list, all_vars)
+    warning("Some requested indicators not found in data: ", paste(missing, collapse=", "))
+  }
+  if (length(sel_vars) == 0) stop("No requested indicators found in data.")
+} else {
+  # Fallback to transform tags
+  sel_vars <- unique(unlist(lapply(param$transform_tags, function(tag) all_vars[str_detect(all_vars, fixed(tag))])))
+  if (length(sel_vars) == 0) {
+    warning("No variables matched transform tags; falling back to DA_ and DA3m_ prefixes.")
+    sel_vars <- all_vars[str_detect(all_vars, "^(DA_|DA3m_)")]
+  }
 }
 
 cat("Running U-MIDAS selection for", length(sel_vars), "indicators on", param$n_cores, "cores.\n")

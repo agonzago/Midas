@@ -1,11 +1,13 @@
 # Runner for gpm_now/midas_model_selection
-# Usage: Rscript 00_run_all.R 2022Q1 2025Q2 [stable]
+# Usage: Rscript 00_run_all.R 2022Q1 2025Q2 [stable] [indicators]
 # Add "stable" as third argument to run stable model selection with evaluation periods
+# Add comma-separated list of indicators as fourth argument (optional)
 
 args <- commandArgs(trailingOnly = TRUE)
 start_q <- ifelse(length(args) >= 1, args[[1]], "2022Q1")
 end_q   <- ifelse(length(args) >= 2, args[[2]], "2025Q2")
 run_stable <- length(args) >= 3 && tolower(args[[3]]) == "stable"
+indicators <- ifelse(length(args) >= 4, args[[4]], "")
 
 # Get directories - assume we're in the workspace root
 code_dir <- normalizePath(file.path(getwd(), "gpm_now", "midas_model_selection", "code"))
@@ -25,7 +27,7 @@ if (status1 != 0) stop("Vintage builder failed")
 # Choose between standard and stable model selection
 if (run_stable) {
   cat("\n=== Running STABLE model selection (evaluation periods) ===\n\n")
-  select <- sprintf("Rscript %s %s %s %s %s %s %s %s %s %s %s %s",
+  select <- sprintf("Rscript %s %s %s %s %s %s %s %s %s %s %s %s %s",
                     file.path(code_dir, "02b_stable_model_selection.R"),
                     file.path(gpm_root, "retriever", "brazil", "output", "transformed_data", "monthly.csv"),
                     file.path(gpm_root, "retriever", "brazil", "output", "transformed_data", "quarterly.csv"),
@@ -37,7 +39,9 @@ if (run_stable) {
                     "3,4,5,6,7,8,9",   # Indicator lags grid (K)
                     "DA_,DA3m_",       # Transform tags
                     "DA_GDP",          # Target column
-                    "quarter")         # Evaluation period: "quarter" or "month"
+                    "quarter",         # Evaluation period: "quarter" or "month"
+                    "4",               # n_cores (default placeholder)
+                    indicators)        # Indicator list (arg 13)
   cat("Running:\n", select, "\n")
   status2 <- system(select)
   if (status2 != 0) stop("Stable UMIDAS selection failed")
@@ -47,7 +51,7 @@ if (run_stable) {
   selection_file <- file.path(gpm_root, "midas_model_selection", "data", "stable", "stable_model_specs.csv")
 } else {
   cat("\n=== Running STANDARD model selection ===\n\n")
-  select <- sprintf("Rscript %s %s %s %s %s %s %s %s %s %s",
+  select <- sprintf("Rscript %s %s %s %s %s %s %s %s %s %s %s",
                     file.path(code_dir, "02_umidas_model_selection.R"),
                     file.path(gpm_root, "retriever", "brazil", "output", "transformed_data", "monthly.csv"),
                     file.path(gpm_root, "retriever", "brazil", "output", "transformed_data", "quarterly.csv"),
@@ -57,7 +61,9 @@ if (run_stable) {
                     "0,1,2,3,4",       # GDP AR lags grid (now includes 0)
                     "3,4,5,6,7,8,9",   # Indicator lags grid (K)
                     "DA_,DA3m_",       # Transform tags
-                    "DA_GDP")          # Target column
+                    "DA_GDP",          # Target column
+                    "4",               # n_cores (default placeholder)
+                    indicators)        # Indicator list (arg 11)
   cat("Running:\n", select, "\n")
   status2 <- system(select)
   if (status2 != 0) stop("UMIDAS selection failed")
